@@ -15,6 +15,10 @@ ENV/
 .idea/
 .DS_Store
 Thumbs.db
+# Documents & Index Files
+*.pdf
+*.docx
+*.doc
 ~$*.docx
 
 # Large Datasets & Compressed Archives

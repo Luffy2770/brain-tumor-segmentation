@@ -40,3 +40,12 @@ processed/reports/*
 !processed/best_classifier.pth
 !processed/best_unet.pth
 !processed/best_attention_unet.pth
+
+# Legacy / Experimental Testing Scripts
+analyze_v2.py
+prepare_seg_data.py
+draw_workflow.py
+classification/infer_v1.py
+classification/analyze_v1.py
+classification/model_v1.py
+segmentation/dice_loss.py

@@ -204,14 +204,19 @@ All physical measurements below were conducted on real patient volume **`BraTS20
   * Best Validation Loss: **0.2291** (Epoch 1).
   * Checkpoint Saved: **Epoch 1** (`best_classifier.pth`). Validation accuracy reached 92.11% at Epoch 2, but validation loss (0.2341) was worse than Epoch 1 (0.2291); because checkpoint saving is keyed strictly to validation loss, Epoch 2 was never saved to disk.
   * Saved Model Holdout Test Accuracy: **91.78%** across all 5,107 non-empty test slices (89.52% sensitivity, 94.01% specificity). Quote 91.78% for the saved model, NOT 92.11%.
+  * **The Epoch 1 Loss Spike (7121.4906)**:
+    * **Observation**: Training loss reported `7121.4906` in Epoch 1 before dropping to `0.1654` in Epoch 2.
+    * **Measured Root Cause**: In `cls_train_images.npy`, 31 peripheral edge slices contained near-zero standard deviation (e.g. Patient 150 Slice 136 had only 1 non-zero voxel of intensity 1030.0, resulting in `std = 0.0`). In Station 2 (`s2.py`), normalizing background pixels with `(0 - mean) / (std + 1e-8)` resulted in values up to **-102,999,998,464.0** (-103 Billion). These extreme values caused loss to spike in Epoch 1 until Adam adapted its second-moment scales.
+    * **Validation Stability**: In validation slices, no zero-std slices existed (pixel range $[-30.43, 12.09]$), yielding a smooth validation loss of `0.2291` and 91.78% test accuracy.
+    * **Defensible Examiner Answer**: *"Training experienced numerical instability in the first epoch due to edge slices with near-zero standard deviation. The checkpoint was validated on held-out data achieving 91.78% test accuracy."*
 * **Test Performance (Evaluated on all 5,107 Non-Empty Test Slices)**:
   * True Positives (Tumor detected): **2,272**
   * False Positives (Healthy passed to carver): **154**
   * True Negatives (Healthy rejected): **2,415**
   * False Negatives (Tumor missed): **266**
-  * **Test Sensitivity (Recall)**: **89.52%**
-  * **Test Specificity**: **94.01%**
-  * **Test Accuracy**: **91.78%**  
+  * **Test Sensitivity (Recall)**: **89.52%** ($2,272 / 2,538$)
+  * **Test Specificity**: **94.01%** ($2,415 / 2,569$)
+  * **Test Accuracy**: **91.78%** ($(2,272 + 2,415) / 5,107$)
   `SOURCE: scratch/measure_facts.py execution`
 * **Output**: Tuple `(tumor_prob: float, is_suspicious: bool)` (`s4.py:53-55`).
 * **Connections**: Fed by Station 3 (`TensorFunnel`); routes to Station 5 if `is_suspicious=True`, otherwise slice is bypassed.
@@ -261,10 +266,10 @@ All physical measurements below were conducted on real patient volume **`BraTS20
   * **CRITICAL HISTORICAL AUDIT**:
     * Modification date of `models/best_attention_unet.pth`: **2026-10-03 16:03:06**
     * Modification date of `losses.py` (exponent correction): **2026-10-03 17:04:32**
-    * **Factual Status**: The saved Carver weights were trained with **Tversky $\beta=0.7$ and focal exponent $1.33$**. The formula was corrected to the paper's $0.75$ afterwards **without retraining the weights checkpoint**.
+    * **Factual Status**: No training log was saved; to the best of my records the loss used exponent 1.33 and Tversky $\beta=0.7$. The formula was corrected in `losses.py` to the paper's $0.75$ afterwards without retraining the weights checkpoint.
   * Data Augmentations: Random horizontal flip ($p=0.5$), vertical flip ($p=0.5$), and random 90-degree rotations ($p=0.5$) (`train_carver.py:42-52`).
   * Current `config.py` Settings: `Adam(lr=1e-4)`, `Batch Size: 16`, `Patience: 5` (`config.py:SEG_LR`, `config.py:SEG_BATCH_SIZE`).
-  * Historical Training Record: **UNVERIFIED**. No log file or loss history text file for `best_attention_unet.pth` was preserved when it was trained on October 3. Current `config.py` settings prove nothing about what exact learning rate, batch size, or epochs produced the saved weights. Crucially, `training_curves.png` in `outputs/` is dated **August 12, 2026** (an older model artifact) and must **NOT** be put on a slide as evidence, and carver validation Dice/epochs must not be claimed. Quote the 37-patient test benchmark (82.02% mean volume Dice) instead.
+  * Historical Training Record: **UNVERIFIED**. No log file or loss history text file for `best_attention_unet.pth` was preserved when it was trained on October 3. Current `config.py` settings prove nothing about what exact learning rate, batch size, or epochs produced the saved weights. Crucially, `training_curves.png` in `outputs/` is dated **August 12, 2026** (older than the current weights) and must **NOT** be put on a slide as evidence, and carver validation Dice/epochs must not be claimed. Quote the 37-patient test benchmark (82.02% mean volume Dice) instead.
 * **Output**:
   * Type: `torch.Tensor`, shape $(128, 128)$, `float32`, probability range $[0.0, 1.0]$.
 * **Connections**: Fed by Station 3 (`TensorFunnel`) when triggered by Station 4; feeds Station 6 (`ResolutionRestorer`).

@@ -15,37 +15,36 @@ ENV/
 .idea/
 .DS_Store
 Thumbs.db
-# Documents & Index Files
+
+# Documents & Temporary Files
 *.pdf
 *.docx
 *.doc
 ~$*.docx
 
-# Large Datasets & Compressed Archives
+# Large Datasets & Archives
 BraTS2020_TrainingData/
+BraTS2020_ValidationData/
 BraTS2020_ValidationData.zip
 Brain DATASETS/
 Spine DATASETS/
 
-# Preprocessed Data Arrays
+# Preprocessed Data Arrays (Multi-gigabyte binary files)
+*.npy
+*.npz
+my_try_init/data/*
+!my_try_init/data/.gitkeep
 processed/*.npy
 
-# Output graphics and CSV reports
+# Processed output directories
 processed/outputs/*
-processed/reports/*
 !processed/outputs/.gitkeep
+processed/reports/*
 !processed/reports/.gitkeep
 
-# Checkpoints
-!processed/best_classifier.pth
-!processed/best_unet.pth
-!processed/best_attention_unet.pth
+# Checkpoints to track explicitly (under 10 MB each)
+!my_try_init/models/*.pth
 
-# Legacy / Experimental Testing Scripts
-analyze_v2.py
-prepare_seg_data.py
-draw_workflow.py
-classification/infer_v1.py
-classification/analyze_v1.py
-classification/model_v1.py
-segmentation/dice_loss.py
+# Legacy Archives & Scratch Directories
+legacy_archive/
+scratch/

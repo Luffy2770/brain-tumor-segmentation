@@ -1,0 +1,156 @@
+slice,classifier_prob,verdict,tumor_pixels,passed_to_carver,is_empty
+0,0.021,no tumor,0,False,False
+1,0.016,no tumor,0,False,False
+2,0.0026,no tumor,0,False,False
+3,0.001,no tumor,0,False,False
+4,0.0004,no tumor,0,False,False
+5,0.0005,no tumor,0,False,False
+6,0.0012,no tumor,0,False,False
+7,0.0014,no tumor,0,False,False
+8,0.0011,no tumor,0,False,False
+9,0.0008,no tumor,0,False,False
+10,0.0009,no tumor,0,False,False
+11,0.0008,no tumor,0,False,False
+12,0.0007,no tumor,0,False,False
+13,0.0007,no tumor,0,False,False
+14,0.0008,no tumor,0,False,False
+15,0.0009,no tumor,0,False,False
+16,0.001,no tumor,0,False,False
+17,0.0011,no tumor,0,False,False
+18,0.0014,no tumor,0,False,False
+19,0.0013,no tumor,0,False,False
+20,0.0017,no tumor,0,False,False
+21,0.0021,no tumor,0,False,False
+22,0.002,no tumor,0,False,False
+23,0.0021,no tumor,0,False,False
+24,0.0023,no tumor,0,False,False
+25,0.0025,no tumor,0,False,False
+26,0.003,no tumor,0,False,False
+27,0.0043,no tumor,0,False,False
+28,0.0053,no tumor,0,False,False
+29,0.0097,no tumor,0,False,False
+30,0.0175,no tumor,0,False,False
+31,0.0812,no tumor,0,False,False
+32,0.1431,no tumor,0,False,False
+33,0.1618,no tumor,0,False,False
+34,0.2359,no tumor,0,False,False
+35,0.256,no tumor,0,False,False
+36,0.2753,no tumor,0,False,False
+37,0.2942,no tumor,0,False,False
+38,0.3226,no tumor,0,False,False
+39,0.3032,no tumor,0,False,False
+40,0.2744,no tumor,0,False,False
+41,0.2428,no tumor,0,False,False
+42,0.1956,no tumor,0,False,False
+43,0.1859,no tumor,0,False,False
+44,0.1655,no tumor,0,False,False
+45,0.1642,no tumor,0,False,False
+46,0.1655,no tumor,0,False,False
+47,0.1352,no tumor,0,False,False
+48,0.143,no tumor,0,False,False
+49,0.1529,no tumor,0,False,False
+50,0.2084,no tumor,0,False,False
+51,0.2501,no tumor,0,False,False
+52,0.258,no tumor,0,False,False
+53,0.3033,no tumor,0,False,False
+54,0.3173,no tumor,0,False,False
+55,0.2978,no tumor,0,False,False
+56,0.2655,no tumor,0,False,False
+57,0.2434,no tumor,0,False,False
+58,0.294,no tumor,0,False,False
+59,0.3717,no tumor,0,False,False
+60,0.3705,no tumor,0,False,False
+61,0.4459,no tumor,0,False,False
+62,0.4849,no tumor,0,True,False
+63,0.5294,no tumor,0,True,False
+64,0.5484,no tumor,0,True,False
+65,0.5173,no tumor,0,True,False
+66,0.4766,no tumor,0,True,False
+67,0.4641,no tumor,0,True,False
+68,0.5492,no tumor,0,True,False
+69,0.5729,no tumor,0,True,False
+70,0.619,no tumor,0,True,False
+71,0.5964,no tumor,0,True,False
+72,0.4489,no tumor,0,False,False
+73,0.5074,no tumor,0,True,False
+74,0.6163,no tumor,0,True,False
+75,0.7551,no tumor,0,True,False
+76,0.8347,no tumor,0,True,False
+77,0.8828,no tumor,0,True,False
+78,0.8824,no tumor,0,True,False
+79,0.897,no tumor,0,True,False
+80,0.8982,no tumor,0,True,False
+81,0.857,no tumor,0,True,False
+82,0.8615,no tumor,0,True,False
+83,0.8847,TUMOR,121,True,False
+84,0.8237,TUMOR,129,True,False
+85,0.8422,TUMOR,258,True,False
+86,0.894,TUMOR,598,True,False
+87,0.9829,TUMOR,673,True,False
+88,0.9997,TUMOR,821,True,False
+89,1.0,TUMOR,930,True,False
+90,1.0,TUMOR,951,True,False
+91,1.0,TUMOR,1024,True,False
+92,1.0,TUMOR,1074,True,False
+93,1.0,TUMOR,1044,True,False
+94,1.0,TUMOR,1082,True,False
+95,1.0,TUMOR,1152,True,False
+96,1.0,TUMOR,1169,True,False
+97,1.0,TUMOR,1179,True,False
+98,1.0,TUMOR,1194,True,False
+99,1.0,TUMOR,1189,True,False
+100,1.0,TUMOR,1191,True,False
+101,1.0,TUMOR,1161,True,False
+102,1.0,TUMOR,1090,True,False
+103,1.0,TUMOR,1091,True,False
+104,1.0,TUMOR,1050,True,False
+105,1.0,TUMOR,980,True,False
+106,1.0,TUMOR,928,True,False
+107,0.9999,TUMOR,922,True,False
+108,0.9994,TUMOR,890,True,False
+109,0.9991,TUMOR,868,True,False
+110,0.9978,TUMOR,833,True,False
+111,0.9887,TUMOR,757,True,False
+112,0.9574,TUMOR,678,True,False
+113,0.6891,TUMOR,480,True,False
+114,0.1316,no tumor,0,False,False
+115,0.1201,no tumor,0,False,False
+116,0.0986,no tumor,0,False,False
+117,0.0762,no tumor,0,False,False
+118,0.0554,no tumor,0,False,False
+119,0.0376,no tumor,0,False,False
+120,0.0368,no tumor,0,False,False
+121,0.0363,no tumor,0,False,False
+122,0.0357,no tumor,0,False,False
+123,0.0387,no tumor,0,False,False
+124,0.0366,no tumor,0,False,False
+125,0.0327,no tumor,0,False,False
+126,0.0349,no tumor,0,False,False
+127,0.0356,no tumor,0,False,False
+128,0.0312,no tumor,0,False,False
+129,0.0318,no tumor,0,False,False
+130,0.0292,no tumor,0,False,False
+131,0.0259,no tumor,0,False,False
+132,0.0283,no tumor,0,False,False
+133,0.033,no tumor,0,False,False
+134,0.0293,no tumor,0,False,False
+135,0.024,no tumor,0,False,False
+136,0.0195,no tumor,0,False,False
+137,0.0124,no tumor,0,False,False
+138,0.0228,no tumor,0,False,False
+139,0.0146,no tumor,0,False,False
+140,0.0,no tumor,0,False,True
+141,0.0,no tumor,0,False,True
+142,0.0,no tumor,0,False,True
+143,0.0,no tumor,0,False,True
+144,0.0,no tumor,0,False,True
+145,0.0,no tumor,0,False,True
+146,0.0,no tumor,0,False,True
+147,0.0,no tumor,0,False,True
+148,0.0,no tumor,0,False,True
+149,0.0,no tumor,0,False,True
+150,0.0,no tumor,0,False,True
+151,0.0,no tumor,0,False,True
+152,0.0,no tumor,0,False,True
+153,0.0,no tumor,0,False,True
+154,0.0,no tumor,0,False,True

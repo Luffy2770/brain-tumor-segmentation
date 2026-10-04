@@ -1,16 +1,45 @@
-# 🧠 Cascaded Brain Tumor Segmentation System
+# 🧠 Automated 8-Station Brain Tumor Segmentation Contraption
 
-A two-stage deep learning pipeline for automated screening and 3D volume segmentation of brain tumors from FLAIR MRI scans using **PyTorch**, **Attention U-Net**, and **Focal Tversky Loss**.
+A cascaded, leak-free deep learning pipeline for automated screening and 3D volume segmentation of brain tumors from axial FLAIR MRI scans using **PyTorch**, **Attention U-Net**, and **Focal Tversky Loss**.
 
 ---
 
-## 📌 Project Overview
+## 🏗️ System Overview: The 8-Station Pipeline
 
-This repository provides an end-to-end medical image analysis pipeline for MRI brain scans:
-1. **Stage 1 (Slice Screening Classifier)**: A lightweight 2D CNN (`TumorClassifierCNN`) screens individual axial slices to filter out non-tumor tissue and accelerate processing.
-2. **Stage 2 (Volumetric Segmentation)**: An **Attention U-Net (`AttentionUNet2D`)** with Attention Gates on skip connections predicts 2D tumor probability maps on flagged slices.
-3. **Stage 3 (3D Post-Processing & Cleanup)**: SciPy 3D connected-component analysis removes small isolated noise fragments (< 50 voxels) and re-assembles the full 3D tumor volume.
-4. **Diagnostics & Analytics**: Automatically generates horizontal 3D scan timeline barcodes, relative tumor presence heatmaps, per-slice CSV reports, and 3D volume mask comparison metrics (Dice, IoU, Precision, Recall).
+Instead of feeding massive 3D MRI volumes into a heavy 3D neural network, our system operates like an automated factory assembly line, screening out non-tumor slices with a lightweight 2D classifier before routing candidate slices to an Attention U-Net:
+
+```text
+[Raw 3D MRI Scan] (.nii)
+       │
+       ▼
+[Station 1: ScanLoader (s1.py)] ──── Loads 3D volume, extracts 2D axial slices
+       │
+       ▼
+[Station 2: SliceNormalizer (s2.py)] ── Z-score normalization on non-zero brain pixels
+       │
+       ▼
+[Station 3: TensorFunnel (s3.py)] ───── Interpolates slice to 128x128 4D GPU Tensor
+       │
+       ▼
+[Station 4: SorterGate (s4.py)] ─────── Lightweight 2D CNN filters out healthy slices
+       ├───────────────────────────────┐
+       ▼ [Suspicious: Red Belt]        ▼ [Healthy: Green Belt]
+[Station 5: PrecisionCarver (s5.py)]   [Bypasses heavy machinery!]
+(Attention U-Net highlights tumor)     │
+       │                               │
+       ▼                               │
+[Station 6: ResolutionRestorer (s6.py)]│
+(Bilinear upscaling back to 240x240)   │
+       │                               │
+       └───────────────┬───────────────┘
+                       ▼
+[Station 7: VolumetricSieve (s7.py)] ── 3D Connected Components sweeps away dust (< 50 voxels)
+                       │
+               ┌───────┴───────┐
+               ▼               ▼
+      [Skull Air Mask]  [Station 8: DiagnosticPackager (s8.py)]
+      (Zeroes air)     (Exports comparison PNG, slice bar graph, CSV)
+```
 
 ---
 
@@ -18,70 +47,85 @@ This repository provides an end-to-end medical image analysis pipeline for MRI b
 
 ```text
 brain-tumor-segmentation/
-├── README.md                   # Project documentation & Quick Start Guide
-├── config.py                   # Master configuration & automatic sample_data path resolver
-├── pipeline.py                 # Primary end-to-end 2-stage cascaded pipeline runner
-├── compare_predictions.py      # Volume prediction & comparison visualizer
-├── compare_masks.py            # Detailed 3D mask comparison & metric evaluator
-├── utils.py                    # Shared normalization, image processing & helper utilities
-├── classification/             # Stage 1: Slice Screening Classifier
-│   └── model.py                # TumorClassifierCNN 2D slice classifier architecture
-├── segmentation/               # Stage 2: 2D Tumor Segmentation
-│   ├── attention_unet.py       # AttentionUNet2D architecture with Attention Gates
-│   ├── unet_model.py           # Standard UNet2D architecture
-│   ├── losses.py               # Focal Tversky, Tversky, Combo & Dice loss functions
-│   ├── train_seg.py            # Segmentation model training module
-│   └── evaluate_seg.py         # Segmentation test set evaluation module
-├── sample_data/                # Sample patient MRI scans (~10MB) for instant execution
-│   ├── BraTS20_Training_001/
-│   └── BraTS20_Training_230/
-├── processed/                  # Pre-trained model weights & output directories
-│   ├── best_attention_unet.pth # Pre-trained Attention U-Net weights
-│   ├── best_classifier.pth     # Pre-trained slice classifier weights
-│   └── best_unet.pth           # Pre-trained standard U-Net weights
-└── .gitignore                  # Git exclusions file
+├── my_try_init/                    # Core 8-station production pipeline
+│   ├── config.py                   # Master configuration & hyperparameters
+│   ├── s1.py ... s8.py             # Modular stations S1 to S8
+│   ├── factory_pipeline.py         # Primary end-to-end pipeline runner
+│   ├── losses.py                   # Focal Tversky & Dice loss definitions
+│   ├── check_leakage.py            # Patient-level zero-leakage audit script
+│   ├── generate_analytics.py       # Confusion matrices & benchmark visualizer
+│   ├── train_classifier.py         # Stage 4 2D CNN training routine
+│   ├── train_carver.py             # Stage 5 Attention U-Net training routine
+│   ├── PROJECT_FACTS.md            # Technical specifications & facts sheet
+│   ├── README.md                   # Dedicated package documentation
+│   ├── models/                     # Pre-trained model weights (< 10 MB each)
+│   │   ├── best_classifier.pth     # Stage 4 trained weights
+│   │   └── best_attention_unet.pth # Stage 5 trained weights
+│   └── outputs/                    # Benchmark evaluations & sample results
+├── sample_data/                    # Sample MRI scans for instant execution
+│   ├── BraTS20_Training_001/       # Complete multi-modal scan & ground truth
+│   └── BraTS20_Training_230/       # Complete multi-modal scan & ground truth
+├── Presentation_Brain_Tumor_Contraption.ipynb # Interactive step-by-step walkthrough
+├── requirements.txt                # Python package dependencies
+└── README.md                       # Main repository guide
 ```
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Quick Start Guide for Teammates & Friends
 
-### 1. Prerequisites & Installation
-
-Clone the repository and install required Python packages:
+### 1. Clone & Install Dependencies
 
 ```bash
 git clone https://github.com/Luffy2770/brain-tumor-segmentation.git
 cd brain-tumor-segmentation
-pip install torch torchvision numpy nibabel matplotlib pandas scipy
+pip install -r requirements.txt
 ```
 
-### 2. Run End-to-End Inference
+### 2. Run Pipeline on Included Sample Data (Out-of-the-Box)
 
-To run full classification, segmentation, timeline barcode generation, and combined heatmap rendering on sample MRI data:
+The repository comes with pre-packaged sample patient volumes in `sample_data/` and pre-trained weights in `my_try_init/models/`. You can run inference immediately without downloading massive datasets:
 
 ```bash
-python pipeline.py
+# Compare mode on sample patient 001 (evaluates against ground-truth mask)
+python my_try_init/factory_pipeline.py BraTS20_Training_001 --mode compare
+
+# Compare mode on sample patient 230
+python my_try_init/factory_pipeline.py BraTS20_Training_230 --mode compare
 ```
 
-Outputs will be saved in `processed/outputs/` and `processed/reports/`.
-
-### 3. Evaluate Ground-Truth Mask Comparison
-
-To compute 3D Volume Dice, IoU, Precision, Recall, and 4-panel error discrepancy maps against ground-truth masks:
-
+Or run directly from inside `my_try_init`:
 ```bash
-python compare_masks.py
+cd my_try_init
+python factory_pipeline.py BraTS20_Training_001 --mode compare
 ```
+
+### 3. Inspect the Generated Outputs
+
+Results are automatically saved to `my_try_init/outputs/<patient_id>/`:
+- `comparison.png`: 3-panel visualization showing Normal Scan, Ground-Truth Mask, and Predicted Mask (with tumor volume in mL and voxel counts).
+- `slice_distribution.png`: Per-slice bar chart comparing ground-truth tumor voxels vs predicted voxels across the entire 155-slice axial stack.
+- `slice_report.csv`: Detailed slice-by-slice tabular audit with classification probabilities and segmentation voxel counts.
+
+### 4. Interactive Presentation Notebook
+
+Open `Presentation_Brain_Tumor_Contraption.ipynb` in VS Code or Jupyter Lab to step through each of the 8 stations interactively with inline visualizations.
 
 ---
 
-## 📊 Benchmark Results
+## 📊 Empirical Holdout Benchmark (37 Test Patients)
 
-| Model Architecture | Loss Function | 3D Volume Dice | Peak Volume Dice | Recall (Sensitivity) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Attention U-Net** | Focal Tversky Loss | **89.7%** | **94.6%** | **99.6%** |
-| Standard U-Net | Soft Dice Loss | 88.3% | 93.5% | 94.3% |
+The system was evaluated on a strictly holdout test set of 37 BraTS2020 patients never seen during training:
 
-- **Dataset**: MICCAI BraTS 2020 Training Data (369 Patient Scans).
-- **Hardware Acceleration**: NVIDIA RTX GPU supported (`cuda:0`).
+| Metric | Measured Value |
+| :--- | :--- |
+| **Mean 3D Volume Dice** | **82.02%** |
+| **Median 3D Volume Dice** | **86.36%** |
+| **Voxel Recall (Sensitivity)** | **88.89%** |
+| **Voxel Precision (PPV)** | **78.01%** |
+| **3D Volume IoU** | **71.74%** |
+| **Stage 4 Classifier Sensitivity** | **89.52%** |
+| **Stage 4 Classifier Specificity** | **94.01%** |
+| **Zero Patient-Level Leakage** | **0 patient overlap (Verified)** |
+
+> For complete mathematical definitions, layer parameters, and slice audits, see [`my_try_init/PROJECT_FACTS.md`](my_try_init/PROJECT_FACTS.md).

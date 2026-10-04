@@ -195,14 +195,15 @@ All physical measurements below were conducted on real patient volume **`BraTS20
   * Set to `0.45` (`config.py:CLASSIFIER_THRESHOLD`).
   * **Plain Truth**: This threshold was **never empirically tuned** using ROC or Precision-Recall curve optimization. It was manually picked as a slightly conservative number below 0.50 to bias toward sensitivity.
 * **Training Setup & Verification**:
-  * Loss: `nn.CrossEntropyLoss(weight=[0.9609, 1.0424])` (`SOURCE: train_classifier.py line 105`).
-  * Optimizer: `Adam(lr=0.0001)` (`SOURCE: config.py:CLASSIFIER_LR`).
-  * Batch Size: `64` (`SOURCE: config.py:CLASSIFIER_BATCH_SIZE`).
+  * Loss: `nn.CrossEntropyLoss(weight=[0.9609, 1.0424])` (`SOURCE: train_classifier.py line 180`).
+  * Optimizer: `Adam(lr=0.001)` (`SOURCE: config.py:CLASSIFIER_LR`, verified in training execution log).
+  * Batch Size: `32` (`SOURCE: config.py:CLASSIFIER_BATCH_SIZE`, verified in training execution log).
   * Maximum Epochs: `15`, Early Stopping Patience: `4` (`SOURCE: config.py`).
   * Epochs Actually Run: **5 epochs** (`SOURCE: task-748.log`).
-  * Early Stopping Triggered: Epoch 5 (validation loss did not improve after Epoch 1).
+  * Early Stopping Triggered: Epoch 5 (validation loss did not improve for 4 consecutive epochs after Epoch 1).
   * Best Validation Loss: **0.2291** (Epoch 1).
-  * Best Validation Accuracy: **92.11%** (Epoch 2) (`SOURCE: task-748.log`).
+  * Checkpoint Saved: **Epoch 1** (`best_classifier.pth`). Validation accuracy reached 92.11% at Epoch 2, but validation loss (0.2341) was worse than Epoch 1 (0.2291); because checkpoint saving is keyed strictly to validation loss, Epoch 2 was never saved to disk.
+  * Saved Model Holdout Test Accuracy: **91.78%** across all 5,107 non-empty test slices (89.52% sensitivity, 94.01% specificity). Quote 91.78% for the saved model, NOT 92.11%.
 * **Test Performance (Evaluated on all 5,107 Non-Empty Test Slices)**:
   * True Positives (Tumor detected): **2,272**
   * False Positives (Healthy passed to carver): **154**
@@ -262,9 +263,8 @@ All physical measurements below were conducted on real patient volume **`BraTS20
     * Modification date of `losses.py` (exponent correction): **2026-10-03 17:04:32**
     * **Factual Status**: The saved Carver weights were trained with **Tversky $\beta=0.7$ and focal exponent $1.33$**. The formula was corrected to the paper's $0.75$ afterwards **without retraining the weights checkpoint**.
   * Data Augmentations: Random horizontal flip ($p=0.5$), vertical flip ($p=0.5$), and random 90-degree rotations ($p=0.5$) (`train_carver.py:42-52`).
-  * Optimizer: `Adam(lr=0.0003)` (`config.py:SEG_LR`).
-  * Batch Size: `16` (`config.py:SEG_BATCH_SIZE`).
-  * Carver Training Logs: **UNVERIFIED** (No log file or loss history text file for `best_attention_unet.pth` exists on disk; `training_curves.png` is dated August 12, 2026).
+  * Current `config.py` Settings: `Adam(lr=1e-4)`, `Batch Size: 16`, `Patience: 5` (`config.py:SEG_LR`, `config.py:SEG_BATCH_SIZE`).
+  * Historical Training Record: **UNVERIFIED**. No log file or loss history text file for `best_attention_unet.pth` was preserved when it was trained on October 3. Current `config.py` settings prove nothing about what exact learning rate, batch size, or epochs produced the saved weights. Crucially, `training_curves.png` in `outputs/` is dated **August 12, 2026** (an older model artifact) and must **NOT** be put on a slide as evidence, and carver validation Dice/epochs must not be claimed. Quote the 37-patient test benchmark (82.02% mean volume Dice) instead.
 * **Output**:
   * Type: `torch.Tensor`, shape $(128, 128)$, `float32`, probability range $[0.0, 1.0]$.
 * **Connections**: Fed by Station 3 (`TensorFunnel`) when triggered by Station 4; feeds Station 6 (`ResolutionRestorer`).
@@ -384,8 +384,8 @@ flowchart TD
     end
 
     subgraph S_TRAIN ["Training Workflows"]
-        T_CLS["train_classifier.py<br>Batch=64, LR=1e-4<br>Seed=42, Early Stopping"]
-        T_CRV["train_carver.py<br>Batch=16, LR=3e-4<br>Seed=42, Augmentations"]
+        T_CLS["train_classifier.py<br>Batch=32, LR=1e-3<br>Seed=42, Early Stopping"]
+        T_CRV["train_carver.py<br>Batch=16, LR=1e-4 (config)<br>Weights history: UNVERIFIED"]
         W_CLS["models/best_classifier.pth<br>(Size: 8.5 MB)"]
         W_CRV["models/best_attention_unet.pth<br>(Size: 7.8 MB)"]
     end
@@ -673,6 +673,6 @@ $$\begin{array}{c|cc}
 
 ## CHECKLIST: THINGS I COULD NOT VERIFY
 
-1. **Exact Training Epoch History for `best_attention_unet.pth`**: **UNVERIFIED**. No `.log` or `.csv` training history file for the carver checkpoint was saved on disk. We know its hyperparameter configuration from `config.py` (lr=0.0003, batch=16, patience=5), but the exact epoch where early stopping occurred cannot be verified from files.
+1. **Exact Training Epoch History for `best_attention_unet.pth`**: **UNVERIFIED**. No `.log` or `.csv` training history file for the carver checkpoint was saved on disk when it was trained on October 3. While current `config.py` specifies `lr=1e-4, batch=16, patience=5`, today's config does not prove the historical parameters that created the saved weights. Crucially, `training_curves.png` in `outputs/` is dated **August 12, 2026** (an older legacy run) and cannot be cited as evidence for this model. Quote the 37-patient test benchmark results (82.02% mean volume Dice) instead.
 2. **Plain U-Net Performance Baseline**: **UNVERIFIED**. No weights or logs exist for a standard U-Net without attention gates on this dataset split.
 3. **Exact Numerical Metric History of Old Leaky Pipeline**: **UNVERIFIED**. The old metrics (Dice 82.72%, sensitivity 99.1%) were reported in earlier chat conversations, but because the old leaky files were overwritten during retraining, they cannot be reconstructed from existing disk files.

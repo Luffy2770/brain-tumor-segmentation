@@ -9,7 +9,7 @@ slice,classifier_prob,verdict,tumor_pixels,passed_to_carver,is_empty
 7,0.0,no tumor,0,False,True
 8,0.0,no tumor,0,False,True
 9,0.0,no tumor,0,False,True
-10,0.0,no tumor,0,False,False
+10,0.0,no tumor,0,False,True
 11,0.0052,no tumor,0,False,False
 12,0.0035,no tumor,0,False,False
 13,0.001,no tumor,0,False,False

@@ -132,18 +132,19 @@ All physical measurements below were conducted on real patient volume **`BraTS20
 * **Input**:
   * Type: 2D `np.ndarray`, shape $(240, 240)$, `float64`, range $[0.0, 443.0]$ (measured on slice 75).
 * **Operation (Step-by-Step)**:
-  1. Isolates foreground brain pixels: `brain_pixels = raw_slice[raw_slice > 0]` (`s2.py:14`).
-  2. If `brain_pixels.size == 0`, returns `None` (`s2.py:16-17`).
-  3. Computes foreground mean and standard deviation: `mean = brain_pixels.mean()`, `std = brain_pixels.std()` (`s2.py:19-20`).
-  4. Standardizes slice via Z-score: `normalized = (raw_slice - mean) / (std + 1e-8)` (`s2.py:22`).
-  5. If `mask_background=True`, zeroes out non-brain pixels (`s2.py:24-25`). **Default is `False`**.
+  1. Isolates foreground brain pixels: `brain_pixels = raw_slice[raw_slice > 0]` (`s2.py:16`).
+  2. If `brain_pixels.size < min_pixels` (default 10), returns `None` (`s2.py:18-19`).
+  3. Computes foreground mean and standard deviation: `mean = brain_pixels.mean()`, `std = brain_pixels.std()` (`s2.py:21-22`).
+  4. If `std < min_std` (default 1e-4), returns `None` to prevent division by near-zero variance (`s2.py:24-25`).
+  5. Standardizes slice via Z-score: `normalized = (raw_slice - mean) / (std + 1e-8)` (`s2.py:27`).
+  6. If `mask_background=True`, zeroes out non-brain pixels (`s2.py:29-30`). **Default is `False`**.
 * **Output**:
   * Type: 2D `np.ndarray`, shape $(240, 240)$, `float32`, range $[-2.4181, 3.2279]$ on slice 75 (`SOURCE: scratch/measure_facts.py`).
   * Foreground brain pixel stats: mean $0.0000$, standard deviation $1.0000$.
   * Background zero pixel value: becomes exactly $(0 - 189.73) / 78.46 = \mathbf{-2.4181}$!
-* **Settings & Config**: `epsilon=1e-8` in constructor. Default `mask_background=False`.
+* **Settings & Config**: `epsilon=1e-8, min_pixels=10, min_std=1e-4` in constructor. Default `mask_background=False`.
 * **Connections**: Fed by Station 1 (`ScanLoader`); feeds Station 3 (`TensorFunnel`).
-* **Edge Cases**: Returns `None` if slice contains zero positive pixels.
+* **Edge Cases**: Returns `None` if slice contains fewer than 10 non-zero voxels or standard deviation is below $10^{-4}$ (filters peripheral noise slices).
 * **Known Weaknesses**:
   * **Background shift**: Because `mask_background=False`, the black air outside the head is converted from $0.0$ to negative values (e.g., $-2.42$). Slices with smaller brains have different background values than slices with larger brains.
   * **Per-slice distortion**: Normalizing slice-by-slice rather than volume-by-volume destroys relative 3D contrast differences across depth.
@@ -206,9 +207,16 @@ All physical measurements below were conducted on real patient volume **`BraTS20
   * Saved Model Holdout Test Accuracy: **91.78%** across all 5,107 non-empty test slices (89.52% sensitivity, 94.01% specificity). Quote 91.78% for the saved model, NOT 92.11%.
   * **The Epoch 1 Loss Spike (7121.4906)**:
     * **Observation**: Training loss reported `7121.4906` in Epoch 1 before dropping to `0.1654` in Epoch 2.
-    * **Measured Root Cause**: In `cls_train_images.npy`, 31 peripheral edge slices contained near-zero standard deviation (e.g. Patient 150 Slice 136 had only 1 non-zero voxel of intensity 1030.0, resulting in `std = 0.0`). In Station 2 (`s2.py`), normalizing background pixels with `(0 - mean) / (std + 1e-8)` resulted in values up to **-102,999,998,464.0** (-103 Billion). These extreme values caused loss to spike in Epoch 1 until Adam adapted its second-moment scales.
-    * **Validation Stability**: In validation slices, no zero-std slices existed (pixel range $[-30.43, 12.09]$), yielding a smooth validation loss of `0.2291` and 91.78% test accuracy.
-    * **Defensible Examiner Answer**: *"Training experienced numerical instability in the first epoch due to edge slices with near-zero standard deviation. The checkpoint was validated on held-out data achieving 91.78% test accuracy."*
+    * **Measured Root Cause**: In `cls_train_images.npy`, 31 out of 40,492 peripheral edge slices (0.08%) contained near-zero standard deviation (e.g. Patient 150 Slice 136 had only 1 non-zero voxel of intensity 1030.0, resulting in `std = 0.0`). In Station 2 (`s2.py`), normalizing background pixels with `(0 - mean) / (std + 1e-8)` resulted in values up to **-102,999,998,464.0** (-103 Billion). These extreme values caused the loss to spike in Epoch 1, with the drop in Epoch 2 likely due to Adam adapting its second-moment step sizes.
+    * **Audit Across All Cached Arrays**:
+      * `cls_train_images.npy`: 31 slices affected (min: -103 Billion, max: 14.14).
+      * `cls_val_images.npy`: **0 slices affected** (strictly bounded: $[-30.43, 12.09]$).
+      * `seg_train_images.npy`: **0 slices affected** (strictly bounded: $[-12.31, 18.86]$).
+      * `seg_val_images.npy`: **0 slices affected** (strictly bounded: $[-8.25, 14.70]$).
+      * `seg_test_images.npy`: **0 slices affected** (strictly bounded: $[-8.73, 15.84]$).
+      * Test scans under original S2: 12 slices out of 5,107 (0.23%) were affected (reaching -37.4 Billion; all 12 were healthy non-tumor slices that the model predicted as 0.0000).
+    * **Station 2 Resolution**: `s2.py` was updated with `min_pixels=10` and `min_std=1e-4` returning `None`, which cleanly eliminates all single-voxel outliers during inference and bounds test slice values to $[-24.56, 15.84]$ with 0 skipped tumor slices.
+    * **Defensible Examiner Answer**: *"Training experienced numerical instability in the first epoch likely due to 31 edge slices with near-zero standard deviation producing extreme normalized values. Validation data was clean (loss 0.2291), and the saved checkpoint was validated on held-out test data achieving 91.78% test accuracy."*
 * **Test Performance (Evaluated on all 5,107 Non-Empty Test Slices)**:
   * True Positives (Tumor detected): **2,272**
   * False Positives (Healthy passed to carver): **154**

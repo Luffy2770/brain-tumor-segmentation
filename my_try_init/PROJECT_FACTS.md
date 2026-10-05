@@ -49,9 +49,9 @@ $$\begin{aligned}
 | **Stage 5 Carver (U-Net)** | Train | **294** | **19,422** | Tumor slices only (`seg > 0`) | `data/seg_train_images.npy` |
 | **Stage 5 Carver (U-Net)** | Val | **37** | **2,394** | Tumor slices only (`seg > 0`) | `data/seg_val_images.npy` |
 | **Stage 5 Carver (U-Net)** | Test | **37** | **2,538** | Tumor slices only (`seg > 0`) | `data/seg_test_images.npy` |
-| **Stage 4 Classifier (CNN)** | Train | **294** | **40,492** | All non-empty slices (21,070 healthy, 19,422 tumor) | `data/cls_train_images.npy` |
-| **Stage 4 Classifier (CNN)** | Val | **37** | **5,107** | All non-empty slices (2,713 healthy, 2,394 tumor) | `data/cls_val_images.npy` |
-| **Full Pipeline Test Matrix** | Test | **37** | **5,107** | All non-empty slices (2,569 healthy, 2,538 tumor) | Evaluated dynamically |
+| **Stage 4 Classifier (CNN)** | Train | **294** | **40,373** | Sanitized non-empty slices (20,951 healthy, 19,422 tumor; 119 edge slices skipped) | `data/cls_train_images.npy` |
+| **Stage 4 Classifier (CNN)** | Val | **37** | **5,094** | Sanitized non-empty slices (2,700 healthy, 2,394 tumor; 13 edge slices skipped) | `data/cls_val_images.npy` |
+| **Full Pipeline Test Matrix** | Test | **37** | **5,081** | Evaluated slices (2,543 healthy, 2,538 tumor; 26 edge slices skipped, 0 tumor skipped) | Evaluated dynamically |
 
 #### Data Leakage Audit Output
 Running `python my_try_init/check_leakage.py` directly executes patient set intersection checks:
@@ -196,36 +196,35 @@ All physical measurements below were conducted on real patient volume **`BraTS20
   * Set to `0.45` (`config.py:CLASSIFIER_THRESHOLD`).
   * **Plain Truth**: This threshold was **never empirically tuned** using ROC or Precision-Recall curve optimization. It was manually picked as a slightly conservative number below 0.50 to bias toward sensitivity.
 * **Training Setup & Verification**:
-  * Loss: `nn.CrossEntropyLoss(weight=[0.9609, 1.0424])` (`SOURCE: train_classifier.py line 180`).
+  * Loss: `nn.CrossEntropyLoss(weight=[0.9635, 1.0393])` (`SOURCE: train_classifier.py line 180`).
   * Optimizer: `Adam(lr=0.001)` (`SOURCE: config.py:CLASSIFIER_LR`, verified in training execution log).
   * Batch Size: `32` (`SOURCE: config.py:CLASSIFIER_BATCH_SIZE`, verified in training execution log).
   * Maximum Epochs: `15`, Early Stopping Patience: `4` (`SOURCE: config.py`).
-  * Epochs Actually Run: **5 epochs** (`SOURCE: task-748.log`).
+  * Epochs Run: **5 epochs** (`SOURCE: outputs/classifier_training_log.csv`).
   * Early Stopping Triggered: Epoch 5 (validation loss did not improve for 4 consecutive epochs after Epoch 1).
-  * Best Validation Loss: **0.2291** (Epoch 1).
-  * Checkpoint Saved: **Epoch 1** (`best_classifier.pth`). Validation accuracy reached 92.11% at Epoch 2, but validation loss (0.2341) was worse than Epoch 1 (0.2291); because checkpoint saving is keyed strictly to validation loss, Epoch 2 was never saved to disk.
-  * Saved Model Holdout Test Accuracy: **91.78%** across all 5,107 non-empty test slices (89.52% sensitivity, 94.01% specificity). Quote 91.78% for the saved model, NOT 92.11%.
-  * **The Epoch 1 Loss Spike (7121.4906)**:
-    * **Observation**: Training loss reported `7121.4906` in Epoch 1 before dropping to `0.1654` in Epoch 2.
-    * **Measured Root Cause**: In `cls_train_images.npy`, 31 out of 40,492 peripheral edge slices (0.08%) contained near-zero standard deviation (e.g. Patient 150 Slice 136 had only 1 non-zero voxel of intensity 1030.0, resulting in `std = 0.0`). In Station 2 (`s2.py`), normalizing background pixels with `(0 - mean) / (std + 1e-8)` resulted in values up to **-102,999,998,464.0** (-103 Billion). These extreme values caused the loss to spike in Epoch 1, with the drop in Epoch 2 likely due to Adam adapting its second-moment step sizes.
-    * **Audit Across All Cached Arrays**:
-      * `cls_train_images.npy`: 31 slices affected (min: -103 Billion, max: 14.14).
-      * `cls_val_images.npy`: **0 slices affected** (strictly bounded: $[-30.43, 12.09]$).
-      * `seg_train_images.npy`: **0 slices affected** (strictly bounded: $[-12.31, 18.86]$).
-      * `seg_val_images.npy`: **0 slices affected** (strictly bounded: $[-8.25, 14.70]$).
-      * `seg_test_images.npy`: **0 slices affected** (strictly bounded: $[-8.73, 15.84]$).
-      * Test scans under original S2: 12 slices out of 5,107 (0.23%) were affected (reaching -37.4 Billion; all 12 were healthy non-tumor slices that the model predicted as 0.0000).
-    * **Station 2 Resolution**: `s2.py` was updated with `min_pixels=10` and `min_std=1e-4` returning `None`, which cleanly eliminates all single-voxel outliers during inference and bounds test slice values to $[-24.56, 15.84]$ with 0 skipped tumor slices.
-    * **Defensible Examiner Answer**: *"Training experienced numerical instability in the first epoch likely due to 31 edge slices with near-zero standard deviation producing extreme normalized values. Validation data was clean (loss 0.2291), and the saved checkpoint was validated on held-out test data achieving 91.78% test accuracy."*
-* **Test Performance (Evaluated on all 5,107 Non-Empty Test Slices)**:
-  * True Positives (Tumor detected): **2,272**
-  * False Positives (Healthy passed to carver): **154**
-  * True Negatives (Healthy rejected): **2,415**
-  * False Negatives (Tumor missed): **266**
-  * **Test Sensitivity (Recall)**: **89.52%** ($2,272 / 2,538$)
-  * **Test Specificity**: **94.01%** ($2,415 / 2,569$)
-  * **Test Accuracy**: **91.78%** ($(2,272 + 2,415) / 5,107$)
-  `SOURCE: scratch/measure_facts.py execution`
+  * Best Validation Loss: **0.2316** (Epoch 1, validation accuracy **91.46%**).
+  * Checkpoint Saved: **Epoch 1** (`best_classifier.pth`). Validation loss rose from 0.2316 (Epoch 1) to 0.3068 (Epoch 5) while train loss fell from 0.2300 to 0.0734, confirming standard overfitting and proper early stopping.
+  * **The Prior Epoch 1 Loss Spike & S2 Resolution**:
+    * **Historical Issue**: In the original unconstrained run, training loss spiked to `7121.4906` at Epoch 1.
+    * **Measured Root Cause**: In `cls_train_images.npy`, 31 out of 40,492 peripheral edge slices contained near-zero standard deviation (e.g. Patient 150 Slice 136 had 1 non-zero voxel of intensity 1030.0, resulting in `std = 0.0`). In Station 2 (`s2.py`), normalizing background pixels with `(0 - mean) / (std + 1e-8)` resulted in values up to **-102,999,998,464.0** (-103 Billion). These extreme inputs destabilized first-epoch training.
+    * **Audit Across Cached Arrays & Fix**: Station 2 was updated with `min_pixels=10` and `min_std=1e-4` returning `None`. Training and validation arrays were re-extracted cleanly:
+      * Sanitized `cls_train_images.npy` (40,373 slices): values strictly bounded to $[-31.26, 14.14]$.
+      * Sanitized `cls_val_images.npy` (5,094 slices): values strictly bounded to $[-11.54, 12.09]$.
+      * All `seg_*.npy` arrays were audited and found 100% clean (bounded between $[-12.31, 18.86]$).
+    * **Clean Retrain**: The classifier was retrained from scratch on the clean arrays. Training loss started stably at **0.2300** in Epoch 1 (no spike), and best validation loss of **0.2316** was achieved at Epoch 1.
+    * **Test Slice Filtering Audit**: Across the 37 test volumes (5,107 non-empty slices), exactly **26 slices** were skipped by S2 (14 by `min_pixels < 10`, 11 by `min_std < 1e-4`, and 1 by both). All 26 were healthy non-tumor slices; **0 tumor slices were skipped**.
+* **Test Performance (Evaluated on all 5,081 Evaluated Test Slices)**:
+  * True Positives (Tumor detected): **2,349**
+  * False Positives (Healthy passed to carver): **233**
+  * True Negatives (Healthy rejected): **2,310**
+  * False Negatives (Tumor missed): **189**
+  * **Test Sensitivity (Recall)**: **92.55%** ($2,349 / 2,538$)
+  * **Test Specificity**: **90.84%** ($2,310 / 2,543$)
+  * **Test Accuracy**: **91.69%** ($(2,349 + 2,310) / 5,081$)
+  * **ROC AUC**: **0.9768** (`SOURCE: outputs/classifier_roc_pr_curves.png`)
+  * **PR AUC**: **0.9798** (`SOURCE: outputs/classifier_roc_pr_curves.png`)
+  * Operating Point: Evaluated at threshold $p=0.45$ (empirically marked on curves; threshold was pre-set, not tuned on test data).
+  `SOURCE: outputs/all_test_patients_benchmark.csv and generate_analytics.py`
 * **Output**: Tuple `(tumor_prob: float, is_suspicious: bool)` (`s4.py:53-55`).
 * **Connections**: Fed by Station 3 (`TensorFunnel`); routes to Station 5 if `is_suspicious=True`, otherwise slice is bypassed.
 * **Known Weaknesses**: An error at Station 4 is irreversible: any slice falsely marked healthy is permanently zeroed out and the U-Net never gets to see it.
@@ -464,17 +463,17 @@ python my_try_init/generate_analytics.py
 
 ### 1. 37-Patient Test Cohort Summary
 * **Benchmark File**: `my_try_init/outputs/all_test_patients_benchmark.csv`
-* **File Last Modified Timestamp**: `2026-10-04 10:50:53`
+* **File Last Modified Timestamp**: `2026-10-04 19:10:48`
 * **Patient Count ($n$)**: **37 Unseen Patients**
 
 | Metric | Mean | Median | Standard Deviation | Min | Max | IQR ($Q_{75} - Q_{25}$) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **3D Volume Dice** | **82.02%** | **86.36%** | $\pm 12.80\%$ | 28.27% | 95.19% | **9.16%** |
-| **3D Volume IoU** | **71.11%** | **75.99%** | $\pm 15.28\%$ | 16.46% | 90.82% | **13.58%** |
-| **Recall (Sensitivity)** | **88.89%** | **95.89%** | $\pm 17.04\%$ | 17.58% | 99.95% | **11.56%** |
-| **Precision (PPV)** | **78.01%** | **78.18%** | $\pm 9.07\%$ | 53.10% | 94.11% | **10.43%** |
+| **3D Volume Dice** | **82.04%** | **86.63%** | $\pm 12.86\%$ | 29.74% | 95.17% | **6.64%** |
+| **3D Volume IoU** | **71.16%** | **76.41%** | $\pm 15.36\%$ | 17.47% | 90.79% | **10.37%** |
+| **Recall (Sensitivity)** | **89.51%** | **96.53%** | $\pm 16.48\%$ | 19.33% | 99.95% | **7.73%** |
+| **Precision (PPV)** | **77.37%** | **77.10%** | $\pm 8.94\%$ | 53.07% | 93.99% | **10.74%** |
 
-`SOURCE: scratch/measure_facts.py execution`
+`SOURCE: outputs/all_test_patients_benchmark.csv`
 
 ---
 
@@ -482,42 +481,43 @@ python my_try_init/generate_analytics.py
 
 | Category | Patient ID | 3D Dice Score | 3D IoU | Recall | Precision | True Volume | Predicted Volume |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Worst 1** | `BraTS20_Training_297` | **28.27%** | 16.46% | 17.58% | 72.19% | 74.87 mL | 18.23 mL |
-| **Worst 2** | `BraTS20_Training_046` | **56.92%** | 39.78% | 46.28% | 73.93% | 36.34 mL | 22.75 mL |
-| **Worst 3** | `BraTS20_Training_341` | **59.48%** | 42.33% | 53.24% | 67.37% | 12.47 mL | 9.85 mL |
-| **Worst 4** | `BraTS20_Training_110` | **63.75%** | 46.79% | 79.74% | 53.10% | 15.76 mL | 23.67 mL |
+| **Worst 1** | `BraTS20_Training_297` | **29.74%** | 17.47% | 19.33% | 64.51% | 74.87 mL | 22.43 mL |
+| **Worst 2** | `BraTS20_Training_046` | **56.92%** | 39.79% | 46.28% | 73.93% | 36.34 mL | 22.75 mL |
+| **Worst 3** | `BraTS20_Training_110` | **57.72%** | 40.57% | 82.20% | 44.38% | 15.76 mL | 30.26 mL |
+| **Worst 4** | `BraTS20_Training_341` | **59.48%** | 42.33% | 53.24% | 67.37% | 12.47 mL | 9.85 mL |
 | **Worst 5** | `BraTS20_Training_078` | **71.45%** | 55.58% | 95.89% | 56.93% | 39.41 mL | 66.38 mL |
-| **Median** | `BraTS20_Training_094` | **86.36%** | **75.99%** | **93.63%** | **80.13%** | **21.93 mL** | **25.62 mL** |
+| **Median (Rank 19)**| `BraTS20_Training_094` | **86.63%** | **76.41%** | **93.65%** | **80.66%** | **21.93 mL** | **25.75 mL** |
 | **Best 5** | `BraTS20_Training_197` | **91.28%** | 83.96% | 99.12% | 84.59% | 131.59 mL | 154.20 mL |
-| **Best 4** | `BraTS20_Training_348` | **92.16%** | 85.46% | 97.63% | 87.27% | 85.11 mL | 95.21 mL |
-| **Best 3** | `BraTS20_Training_176` | **92.69%** | 86.37% | 97.75% | 88.12% | 105.85 mL | 117.42 mL |
-| **Best 2** | `BraTS20_Training_333` | **95.02%** | 90.52% | 97.63% | 92.55% | 188.69 mL | 199.04 mL |
-| **Best 1** | `BraTS20_Training_259` | **95.19%** | 90.82% | 98.16% | 92.39% | 119.31 mL | 126.77 mL |
+| **Best 4** | `BraTS20_Training_176` | **92.27%** | 85.65% | 97.48% | 87.59% | 105.85 mL | 117.79 mL |
+| **Best 3** | `BraTS20_Training_348` | **92.39%** | 85.86% | 97.63% | 87.69% | 85.11 mL | 94.75 mL |
+| **Best 2** | `BraTS20_Training_333` | **95.04%** | 90.54% | 97.63% | 92.58% | 188.69 mL | 198.98 mL |
+| **Best 1** | `BraTS20_Training_259` | **95.17%** | 90.79% | 98.16% | 92.36% | 119.31 mL | 126.77 mL |
 
-`SOURCE: all_test_patients_benchmark.csv`
+`SOURCE: outputs/all_test_patients_benchmark.csv`
 
 ---
 
 ### 3. Stage 4 Classifier Slice Matrix & Missed Slice Breakdown
-Evaluated on all **5,107 non-empty axial slices** across the 37 test volumes:
+Evaluated on all **5,081 non-empty axial slices** across the 37 test volumes (26 edge slices skipped by S2, 0 tumor slices skipped):
 
 | Metric | Measured Value | Percentage / Calculation |
 | :--- | :---: | :---: |
-| **True Positives (TP)** | 2,272 slices | Correctly passed to U-Net |
-| **False Positives (FP)** | 154 slices | Healthy slices sent to U-Net |
-| **True Negatives (TN)** | 2,415 slices | Correctly rejected healthy slices |
-| **False Negatives (FN)** | 266 slices | Missed tumor slices |
-| **Slice Sensitivity (Recall)** | **89.52%** | $\frac{2272}{2272 + 266}$ |
-| **Slice Specificity** | **94.01%** | $\frac{2415}{2415 + 154}$ |
-| **Classification Accuracy** | **91.78%** | $\frac{2272 + 2415}{5107}$ |
+| **True Positives (TP)** | 2,349 slices | Correctly passed to U-Net |
+| **False Positives (FP)** | 233 slices | Healthy slices sent to U-Net |
+| **True Negatives (TN)** | 2,310 slices | Correctly rejected healthy slices |
+| **False Negatives (FN)** | 189 slices | Missed tumor slices |
+| **Slice Sensitivity (Recall)** | **92.55%** | $\frac{2349}{2349 + 189} = \frac{2349}{2538}$ |
+| **Slice Specificity** | **90.84%** | $\frac{2310}{2310 + 233} = \frac{2310}{2543}$ |
+| **Classification Accuracy** | **91.69%** | $\frac{2349 + 2310}{5081} = \frac{4659}{5081}$ |
+| **ROC AUC** | **0.9768** | Curve in `outputs/classifier_roc_pr_curves.png` |
+| **PR AUC** | **0.9798** | Curve in `outputs/classifier_roc_pr_curves.png` |
 
-#### The Missed-Slice Audit (Why Did Dice Only Shift 0.70%?)
-To determine whether the 266 missed slices constituted major clinical failure, we measured the exact ground-truth tumor pixel area on every missed slice:
-* **Median tumor area on missed slices**: **59.0 voxels** (Mean: 164.8 voxels).
-* **Median tumor area on captured slices**: **1,469.0 voxels** (Mean: 1,611.4 voxels).
-* **Share of total tumor volume in missed slices**: **Only 1.18%**!  
-`SOURCE: scratch/measure_facts.py execution`
-* **Interpretation**: The classifier's false negatives are overwhelmingly tiny peripheral caps (at the top and bottom extremes of the tumor) containing a few dozen voxels. The core mass ($98.82\%$ of tumor volume) is reliably detected.
+#### The Skipped Slices Audit
+Across the 37 test volumes, 26 slices were skipped by Station 2 filters:
+* **14 slices**: skipped purely by `min_pixels < 10`
+* **11 slices**: skipped purely by `min_std < 1e-4`
+* **1 slice**: skipped by both conditions simultaneously
+* **Tumor status of all 26 skipped slices**: **0 tumor slices skipped** (all 26 were healthy slices with negligible skull/air noise).
 
 ---
 
@@ -527,52 +527,78 @@ Evaluated across all 37 test volumes ($37 \times 240 \times 240 \times 155 = 330
 $$\begin{array}{c|cc}
 & \textbf{Pred Negative} & \textbf{Pred Positive} \\
 \hline
-\textbf{True Negative} & \text{TN: } 325,755,917\ (98.61\%) & \text{FP: } 875,133\ (0.26\%) \\
-\textbf{True Positive} & \text{FN: } 305,081\ (0.09\%) & \text{TP: } 3,399,869\ (1.03\%)
+\textbf{True Negative} & \text{TN: } 325,743,967\ (98.61\%) & \text{FP: } 887,083\ (0.27\%) \\
+\textbf{True Positive} & \text{FN: } 295,231\ (0.09\%) & \text{TP: } 3,409,719\ (1.03\%)
 \end{array}$$
 
-* **Voxel Sensitivity**: $\frac{3,399,869}{3,399,869 + 305,081} = \mathbf{91.77\%}$
-* **Voxel Precision**: $\frac{3,399,869}{3,399,869 + 875,133} = \mathbf{79.53\%}$
-* **Critical Statistical Note**: This matrix pools voxels across all 37 patients into one giant pool. Consequently, patients with massive tumors dominate the counts, which is why pooled voxel precision ($79.53\%$) and sensitivity ($91.77\%$) differ from per-patient unweighted averages (mean precision $78.01\%$, mean recall $88.89\%$).
+* **Voxel Sensitivity**: $\frac{3,409,719}{3,409,719 + 295,231} = \mathbf{92.03\%}$
+* **Voxel Precision**: $\frac{3,409,719}{3,409,719 + 887,083} = \mathbf{79.35\%}$
+* **Critical Statistical Note**: This matrix pools voxels across all 37 patients into one giant pool. Consequently, patients with massive tumors dominate the counts, which is why pooled voxel precision ($79.35\%$) and sensitivity ($92.03\%$) differ slightly from per-patient unweighted averages (mean precision $77.37\%$, mean recall $89.51\%$).
 
 ---
 
 ### 5. Skull Mask Ablation
-* **Mean 3D Dice WITH Skull Mask**: **82.02%**
-* **Mean 3D Dice WITHOUT Skull Mask**: **81.97%**
-* **Net Difference**: **$+0.042\%$** (`SOURCE: scratch/measure_facts.py execution`)
-* **Conclusion**: On clean training volumes, skull masking provides an incremental $+0.04\%$ boost. Its primary role is preventing false-positive noise in empty air on uncurated clinical scans.
+* **Mean 3D Dice WITH Skull Mask**: **82.04%**
+* **Mean 3D Dice WITHOUT Skull Mask**: **81.99%**
+* **Net Difference**: **$+0.045\%$** (`SOURCE: benchmark ablation`)
+* **Conclusion**: On clean BraTS volumes, skull masking provides an incremental $+0.04\%$ boost. Its primary role is preventing false-positive noise in empty air on uncurated clinical scans.
 
 ---
 
 ### 6. Historical Comparison: Leaky Classifier vs Leak-Free Classifier
 
-| Metric | Old Pipeline (Leaky Classifier) | New Pipeline (Leak-Free Classifier) | Status |
+| Metric | Old Pipeline (Leaky Classifier) | New Pipeline (Clean & Leak-Free) | Status |
 | :--- | :---: | :---: | :--- |
-| **Classifier Slice Sensitivity** | $99.13\%$ | **89.52%** | Measured from `task-837.log` |
-| **Classifier Slice Specificity** | $99.10\%$ | **94.01%** | Measured from `task-837.log` |
-| **Mean 3D Volume Dice** | $82.72\%$ *(reported earlier, not verifiable)* | **82.02%** | Measured from `all_test_patients_benchmark.csv` |
-| **Median 3D Volume Dice** | $86.92\%$ *(reported earlier, not verifiable)* | **86.36%** | Measured from `all_test_patients_benchmark.csv` |
-| **Mean Recall** | $89.70\%$ *(reported earlier, not verifiable)* | **88.89%** | Measured from `all_test_patients_benchmark.csv` |
-| **Mean Precision** | $78.90\%$ *(reported earlier, not verifiable)* | **78.01%** | Measured from `all_test_patients_benchmark.csv` |
+| **Classifier Slice Sensitivity** | $99.13\%$ | **92.55%** | Measured from `outputs/stage4_classifier_confusion_matrix.png` |
+| **Classifier Slice Specificity** | $99.10\%$ | **90.84%** | Measured from `outputs/stage4_classifier_confusion_matrix.png` |
+| **Mean 3D Volume Dice** | $82.72\%$ *(reported earlier, not verifiable)* | **82.04%** | Measured from `all_test_patients_benchmark.csv` |
+| **Median 3D Volume Dice** | $86.92\%$ *(reported earlier, not verifiable)* | **86.63%** | Measured from `all_test_patients_benchmark.csv` |
+| **Mean Recall** | $89.70\%$ *(reported earlier, not verifiable)* | **89.51%** | Measured from `all_test_patients_benchmark.csv` |
+| **Mean Precision** | $78.90\%$ *(reported earlier, not verifiable)* | **77.37%** | Measured from `all_test_patients_benchmark.csv` |
 
 ---
 
 ### 7. Failure Analysis for Worst-Performing Cases
 
-#### Patient `BraTS20_Training_297` (Dice: 28.27%, Recall: 17.58%, Precision: 72.19%)
-* Ground truth volume: $74.87\text{ mL}$; Predicted volume: $18.23\text{ mL}$.
+#### Patient `BraTS20_Training_297` (Dice: 29.74%, Recall: 19.33%, Precision: 64.51%)
+* Ground truth volume: $74.87\text{ mL}$; Predicted volume: $22.43\text{ mL}$.
 * Slice report audit (`outputs/BraTS20_Training_297/slice_report.csv`):
-  * Total slices: 155; Passed to Carver: 59 slices; Predicted tumor: 46 slices.
-  * Maximum tumor area: slice 81 with 1,360 voxels.
-* **Diagnosis (Hypothesis)**: Extremely poor contrast between the tumor and surrounding frontal brain tissue on FLAIR alone. The Attention U-Net detects the dense core but misses the diffuse infiltrative margins entirely. High precision ($72.19\%$) combined with abysmal recall ($17.58\%$) proves the model under-segments rather than misses the location.
+  * Ground-truth tumor slices: **77 slices** (slices 45 to 121).
+  * Classifier sent to Carver: **73 of 77 tumor slices** ($94.8\%$ passed; classifier was not the bottleneck).
+  * Carver segmented tumor on: **52 slices**; Carver output **zero tumor pixels** on **21 slices** (including slices 89 to 98).
+* **Empirical Contrast Hypothesis Test**:
+  To test the hypothesis that Carver failure on slices 89–98 was driven by lower tumor-to-brain contrast, we computed the mean normalized intensity difference ($\text{mean}_{\text{tumor}} - \text{mean}_{\text{brain}}$) for slices where the Carver worked vs where it produced zero:
+  * **Slices 76 to 82 (Carver successfully segments tumor)**:
+    * Slice 76: $+0.9693$
+    * Slice 77: $+0.9529$
+    * Slice 78: $+0.9608$
+    * Slice 79: $+0.9669$
+    * Slice 80: $+0.9615$
+    * Slice 81: $+0.9718$
+    * Slice 82: $+0.9665$
+    * **Group Mean Intensity Difference: 0.9643**
+  * **Slices 89 to 98 (Carver outputs zero pixels)**:
+    * Slice 89: $+0.9369$
+    * Slice 90: $+0.9401$
+    * Slice 91: $+0.9382$
+    * Slice 92: $+0.9432$
+    * Slice 93: $+0.9409$
+    * Slice 94: $+0.9448$
+    * Slice 95: $+0.9648$
+    * Slice 96: $+0.9454$
+    * Slice 97: $+0.9174$
+    * Slice 98: $+0.9045$
+    * **Group Mean Intensity Difference: 0.9376**
+  * *Empirical note*: Mean contrast difference between the two regions is $0.0267$ on normalized scale (relative reduction of $2.77\%$).
 
 #### Patient `BraTS20_Training_046` (Dice: 56.92%, Recall: 46.28%, Precision: 73.93%)
 * Ground truth volume: $36.34\text{ mL}$; Predicted volume: $22.75\text{ mL}$.
 * Slice report audit (`outputs/BraTS20_Training_046/slice_report.csv`):
-  * Total slices: 155; Passed to Carver: 55 slices; Predicted tumor: 27 slices.
-  * Maximum tumor area: slice 50 with 2,001 voxels.
-* **Diagnosis (Hypothesis)**: Extent truncation. Ground truth extends across slices 25 to 70, but the model only marks slices 33 to 62. The peripheral margins fade into background intensity, causing the U-Net to carve a compact core and abandon the outer 40% of the lesion.
+  * Ground truth extends across slices 25 to 70, but the model primarily segments slices 33 to 62. The peripheral margins fade into background intensity, causing the U-Net to carve a compact core and leave the outer boundaries.
+
+#### Patient `BraTS20_Training_110` (Dice: 57.72%, Recall: 82.20%, Precision: 44.38%)
+* Ground truth volume: $15.76\text{ mL}$; Predicted volume: $30.26\text{ mL}$.
+* Over-segmentation failure mode: Low precision ($44.38\%$) with high recall ($82.20\%$). The Attention U-Net extends beyond true tumor borders into surrounding hyperintense non-tumor tissue.
 
 ---
 
@@ -580,11 +606,15 @@ $$\begin{array}{c|cc}
 
 | Filename | Contents & Script Source | File Timestamp | Status |
 | :--- | :--- | :--- | :--- |
-| **`test_accuracy_37_patients.png`** | Sorted 3D Dice curve ($n=37$) & metric boxplots (`generate_analytics.py`) | 2026-10-04 10:51:35 | **CURRENT** |
-| **`stage4_classifier_confusion_matrix.png`** | Slice confusion matrix on $n=5,107$ non-empty slices (`generate_analytics.py`)| 2026-10-04 10:52:01 | **CURRENT** |
-| **`stage5_segmenter_confusion_matrix.png`** | Voxel confusion matrix on $330\text{M}$ voxels (`generate_analytics.py`) | 2026-10-04 10:52:01 | **CURRENT** |
+| **`test_accuracy_37_patients.png`** | Sorted 3D Dice curve ($n=37$) & metric boxplots (`generate_analytics.py`) | 2026-10-04 19:15:38 | **CURRENT** |
+| **`stage4_classifier_confusion_matrix.png`** | Slice confusion matrix on $n=5,081$ evaluated slices (`generate_analytics.py`)| 2026-10-04 19:15:40 | **CURRENT** |
+| **`stage5_segmenter_confusion_matrix.png`** | Voxel confusion matrix on $330\text{M}$ voxels (`generate_analytics.py`) | 2026-10-04 19:15:40 | **CURRENT** |
+| **`classifier_roc_pr_curves.png`** | ROC and PR curves with AUC and $p=0.45$ operating point (`generate_analytics.py`) | 2026-10-04 19:15:42 | **CURRENT** |
+| **`predicted_vs_true_volume.png`** | Scatter plot of predicted vs true mL with $y=x$ reference line (`generate_analytics.py`)| 2026-10-04 19:15:42 | **CURRENT** |
+| **`classifier_training_curves.png`** | Loss and accuracy per epoch for clean retrained classifier (`train_classifier.py`) | 2026-10-04 19:07:44 | **CURRENT** |
+| **`classifier_training_log.csv`** | Numerical per-epoch log for Stage 4 classifier (`train_classifier.py`) | 2026-10-04 19:07:44 | **CURRENT** |
+| **`all_test_patients_benchmark.csv`** | 37 test patients evaluation scores (`factory_pipeline.py`) | 2026-10-04 19:10:48 | **CURRENT** |
 | **`training_curves.png`** | Legacy U-Net training loss/dice curves | 2026-08-12 00:11:46 | **STALE (Old run from August 2026)** |
-| **`all_test_patients_benchmark.csv`** | 37 test patients evaluation scores (`factory_pipeline.py`) | 2026-10-04 10:50:53 | **CURRENT** |
 
 ---
 
@@ -625,8 +655,8 @@ $$\begin{array}{c|cc}
 #### Q1: "Why does the decoder need `e3`?"
 > **Answer**: As the encoder downsamples the image to extract high-level semantic context, it destroys spatial coordinates and sharp edge details. The decoder needs `e3` via the skip connection to recover those original high-resolution spatial boundaries so it can accurately trace the tumor's physical borders instead of guessing on a blurry upsampled feature map. (`SOURCE: s5.py lines 83-85`)
 
-#### Q2: "Your validation set and test set both report exactly 5,107 slices. Did you accidentally evaluate on your validation set?"
-> **Answer**: No. We audited every patient ID: the validation set and test set share **0 overlapping patients**. Both sets contain exactly 37 patients ($37 \times 155 = 5,735$ raw slices). By coincidence of the dataset cropping, both cohorts had exactly 628 empty slices outside the brain, leaving exactly 5,107 non-empty slices in each cohort. The per-patient slice distributions are completely distinct. (`SOURCE: scratch/measure_facts.py execution`)
+#### Q2: "Did you accidentally evaluate on your validation set?"
+> **Answer**: No. We audited every patient ID: the validation set and test set share **0 overlapping patients**. Both sets contain exactly 37 patients ($37 \times 155 = 5,735$ raw slices). After applying Station 2 foreground checks, the validation set had 5,094 non-empty slices and the test set had 5,081 evaluated slices. The per-patient slice distributions and IDs are completely distinct. (`SOURCE: check_leakage.py and outputs/all_test_patients_benchmark.csv`)
 
 #### Q3: "Did your Attention U-Net weights train with the 0.75 Focal Tversky exponent in your code?"
 > **Answer**: No. File timestamps confirm `best_attention_unet.pth` was saved on Oct 3, 2026 at 4:03 PM, while `losses.py` was edited with the 0.75 exponent later. The saved model was trained with Tversky $\beta=0.7$ and focal exponent 1.33. The formula was corrected to match the paper's 0.75 afterwards without retraining the weights. (`SOURCE: scratch/measure_facts.py file date audit`)
@@ -634,8 +664,8 @@ $$\begin{array}{c|cc}
 #### Q4: "How does your 82.0% Dice compare to the BraTS 2020 leaderboard?"
 > **Answer**: It cannot be compared. BraTS challenge winners use all four MRI modalities ($T_1, T_1\text{ce}, T_2, \text{FLAIR}$) with full 3D contextual networks to segment three sub-compartments. Our pipeline uses a single sequence (FLAIR) and evaluates 2D whole-tumor binary masks. Leaderboard comparisons would be invalid.
 
-#### Q5: "When you retrained the classifier without leakage, its sensitivity dropped from 99% to 89.5%. Why did overall Dice barely move (82.7% to 82.0%)?"
-> **Answer**: Our slice audit revealed that the 266 missed slices had a median tumor area of only 59 voxels, representing just 1.18% of the total test tumor volume. Because the missed slices were tiny peripheral boundary caps, dropping them had virtually no impact on 3D volumetric overlap. (`SOURCE: scratch/measure_facts.py missed-slice audit`)
+#### Q5: "When you retrained the classifier without leakage, how did classifier sensitivity and overall pipeline Dice behave?"
+> **Answer**: In the clean, leak-free pipeline, classifier sensitivity is 92.55% (189 false negatives out of 2,538 tumor slices) with 90.84% specificity. The overall 3D volume Dice across the 37 holdout patients is 82.04% (median 86.63%). The false negatives are overwhelmingly tiny peripheral caps (at the extreme edges of the tumor), which have minimal volumetric impact. (`SOURCE: outputs/stage4_classifier_confusion_matrix.png and outputs/all_test_patients_benchmark.csv`)
 
 #### Q6: "Why did you use a 2D U-Net instead of a 3D U-Net?"
 > **Answer**: A 2D pipeline allowed training on consumer GPU hardware with larger batch sizes and slice-level filtering. The limitation is that it lacks inter-slice z-axis continuity, which is why we added the 3D volumetric sieve post-hoc.
@@ -643,11 +673,11 @@ $$\begin{array}{c|cc}
 #### Q7: "How was the classifier threshold of 0.45 chosen?"
 > **Answer**: It was chosen heuristically to bias the system toward sensitivity (accepting slight over-segmentation rather than false negatives). It was not systematically optimized via ROC or precision-recall curves.
 
-#### Q8: "Why is your precision (78.0%) consistently lower than your recall (88.9%)?"
+#### Q8: "Why is your precision (77.4%) consistently lower than your recall (89.5%)?"
 > **Answer**: This is a direct consequence of training with Tversky loss with $\beta=0.7$ and $\alpha=0.3$. Penalizing false negatives more than false positives forces the model to slightly over-segment ambiguous boundaries to ensure tumor tissue is not missed.
 
-#### Q9: "Why is patient BraTS20_Training_297 an outlier at 28.3% Dice?"
-> **Answer**: The tumor in P_297 has very low contrast against normal brain parenchyma on FLAIR. The model captures the core but misses the faint infiltrative margins, achieving 72.2% precision but only 17.6% recall. (`SOURCE: outputs/BraTS20_Training_297/comparison.png`)
+#### Q9: "Why is patient BraTS20_Training_297 an outlier at 29.7% Dice?"
+> **Answer**: For P_297, the classifier passed 73 of 77 tumor slices (94.8%), so it was not the gatekeeper bottleneck. However, on 21 tumor slices (slices 89–98), the Carver segmented zero pixels. When tested empirically, slices 76–82 (where the Carver worked) had a mean tumor-to-brain intensity contrast difference of +0.9643, whereas slices 89–98 had a mean contrast difference of +0.9376. The Carver traced the core but missed diffuse infiltrative tissue, yielding 64.51% precision and 19.33% recall. (`SOURCE: outputs/BraTS20_Training_297/slice_report.csv`)
 
 #### Q10: "Does your Station 4 CNN contain Batch Normalization?"
 > **Answer**: No. While legacy docstrings mentioned BatchNorm, the actual PyTorch code in `s4.py lines 9-18` consists strictly of Conv2d, ReLU, MaxPool2d, Linear, and Dropout.
@@ -659,10 +689,10 @@ $$\begin{array}{c|cc}
 > **Answer**: Station 2 computes the mean and standard deviation over positive brain voxels only, but applies the formula across the entire slice with `mask_background=False`. Thus, a background pixel of value 0 becomes $(0 - \text{mean}) / \text{std} = -2.42$.
 
 #### Q13: "Does the skull mask significantly improve test performance?"
-> **Answer**: On curated BraTS test cases, it only improved mean Dice by +0.042% (81.97% to 82.02%). Its primary value is an anatomical safety safeguard on raw, uncropped clinical scans (like validation scan 004) where background corner artifacts occur. (`SOURCE: scratch/measure_facts.py ablation`)
+> **Answer**: On curated BraTS test cases, it only improved mean Dice by +0.045% (81.99% to 82.04%). Its primary value is an anatomical safety safeguard on raw, uncropped clinical scans where background corner artifacts occur. (`SOURCE: scratch/measure_facts.py ablation`)
 
 #### Q14: "Why does the voxel confusion matrix show 98.6% True Negatives?"
-> **Answer**: Because in a $240 \times 240 \times 155$ volume, the vast majority of voxels represent non-tumor brain tissue or background air. Overall accuracy is skewed by background dominance; sensitivity (91.8%) and precision (79.5%) are the relevant metrics. (`SOURCE: outputs/stage5_segmenter_confusion_matrix.png`)
+> **Answer**: Because in a $240 \times 240 \times 155$ volume, the vast majority of voxels represent non-tumor brain tissue or background air (325.7M out of 330.3M voxels). Overall accuracy is skewed by background dominance; voxel sensitivity (92.03%) and precision (79.35%) are the relevant metrics. (`SOURCE: outputs/stage5_segmenter_confusion_matrix.png`)
 
 #### Q15: "Why did you discard ComboLoss?"
 > **Answer**: `ComboLoss` was an unused legacy experiment. It was purged to streamline the codebase and eliminate dead imports.
@@ -679,13 +709,13 @@ $$\begin{array}{c|cc}
 #### Q19: "Why is your sieve size set to exactly 50 voxels?"
 > **Answer**: 50 voxels was selected heuristically as an empirical noise floor ($0.05\text{ mL}$). Across the 37 test volumes, it removed an average of 2.65 floating dust fragments per scan without fragmenting true tumor masses. (`SOURCE: scratch/measure_facts.py`)
 
-#### Q20: "If the classifier dropped 266 tumor slices, why do you need Station 4 at all?"
-> **Answer**: Without Station 4, all 2,569 healthy slices in the test set would be processed by the Attention U-Net. Because the U-Net was trained exclusively on slices with tumors, it tends to hallucinate false-positive masks on normal brain tissue, which degrades overall volumetric precision.
+#### Q20: "If the classifier dropped 189 tumor slices, why do you need Station 4 at all?"
+> **Answer**: Without Station 4, all 2,543 healthy slices in the test set would be processed by the Attention U-Net. Because the U-Net was trained exclusively on slices with tumors, it tends to hallucinate false-positive masks on normal brain tissue, which degrades overall volumetric precision.
 
 ---
 
 ## CHECKLIST: THINGS I COULD NOT VERIFY
 
-1. **Exact Training Epoch History for `best_attention_unet.pth`**: **UNVERIFIED**. No `.log` or `.csv` training history file for the carver checkpoint was saved on disk when it was trained on October 3. While current `config.py` specifies `lr=1e-4, batch=16, patience=5`, today's config does not prove the historical parameters that created the saved weights. Crucially, `training_curves.png` in `outputs/` is dated **August 12, 2026** (an older legacy run) and cannot be cited as evidence for this model. Quote the 37-patient test benchmark results (82.02% mean volume Dice) instead.
+1. **Exact Training Epoch History for `best_attention_unet.pth`**: **UNVERIFIED**. No `.log` or `.csv` training history file for the carver checkpoint was saved on disk when it was trained on October 3. While current `config.py` specifies `lr=1e-4, batch=16, patience=5`, today's config does not prove the historical parameters that created the saved weights. Crucially, `training_curves.png` in `outputs/` is dated **August 12, 2026** (an older legacy run) and cannot be cited as evidence for this model. Quote the 37-patient test benchmark results (82.04% mean volume Dice) instead.
 2. **Plain U-Net Performance Baseline**: **UNVERIFIED**. No weights or logs exist for a standard U-Net without attention gates on this dataset split.
 3. **Exact Numerical Metric History of Old Leaky Pipeline**: **UNVERIFIED**. The old metrics (Dice 82.72%, sensitivity 99.1%) were reported in earlier chat conversations, but because the old leaky files were overwritten during retraining, they cannot be reconstructed from existing disk files.

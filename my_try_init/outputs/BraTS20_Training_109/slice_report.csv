@@ -1,59 +1,59 @@
 slice,classifier_prob,verdict,tumor_pixels,passed_to_carver,is_empty
-0,0.0029,no tumor,0,False,False
-1,0.0011,no tumor,0,False,False
-2,0.0008,no tumor,0,False,False
-3,0.0009,no tumor,0,False,False
-4,0.0005,no tumor,0,False,False
-5,0.0005,no tumor,0,False,False
-6,0.0003,no tumor,0,False,False
-7,0.0002,no tumor,0,False,False
-8,0.0006,no tumor,0,False,False
-9,0.0005,no tumor,0,False,False
-10,0.0002,no tumor,0,False,False
-11,0.0002,no tumor,0,False,False
-12,0.0001,no tumor,0,False,False
-13,0.0001,no tumor,0,False,False
-14,0.0002,no tumor,0,False,False
-15,0.0003,no tumor,0,False,False
-16,0.0005,no tumor,0,False,False
-17,0.0006,no tumor,0,False,False
-18,0.0006,no tumor,0,False,False
-19,0.0007,no tumor,0,False,False
-20,0.0012,no tumor,0,False,False
-21,0.0016,no tumor,0,False,False
-22,0.0017,no tumor,0,False,False
-23,0.0018,no tumor,0,False,False
-24,0.0019,no tumor,0,False,False
-25,0.0019,no tumor,0,False,False
-26,0.0032,no tumor,0,False,False
-27,0.0066,no tumor,0,False,False
-28,0.0119,no tumor,0,False,False
-29,0.018,no tumor,0,False,False
-30,0.0295,no tumor,0,False,False
-31,0.0378,no tumor,0,False,False
-32,0.032,no tumor,0,False,False
-33,0.0417,no tumor,0,False,False
-34,0.1058,no tumor,0,False,False
-35,0.1606,no tumor,0,False,False
-36,0.2334,no tumor,0,False,False
-37,0.4041,no tumor,0,False,False
-38,0.2952,no tumor,0,False,False
-39,0.1596,no tumor,0,False,False
-40,0.0788,no tumor,0,False,False
-41,0.097,no tumor,0,False,False
-42,0.1326,no tumor,0,False,False
-43,0.1381,no tumor,0,False,False
-44,0.1844,no tumor,0,False,False
-45,0.2231,no tumor,0,False,False
-46,0.2436,no tumor,0,False,False
-47,0.2065,no tumor,0,False,False
-48,0.1859,no tumor,0,False,False
-49,0.2042,no tumor,0,False,False
-50,0.3459,no tumor,0,False,False
-51,0.6561,TUMOR,14,True,False
-52,0.9437,TUMOR,139,True,False
-53,0.994,TUMOR,574,True,False
-54,0.9995,TUMOR,886,True,False
+0,0.0077,no tumor,0,False,False
+1,0.0041,no tumor,0,False,False
+2,0.0036,no tumor,0,False,False
+3,0.0017,no tumor,0,False,False
+4,0.001,no tumor,0,False,False
+5,0.0011,no tumor,0,False,False
+6,0.0007,no tumor,0,False,False
+7,0.0009,no tumor,0,False,False
+8,0.0031,no tumor,0,False,False
+9,0.0033,no tumor,0,False,False
+10,0.0029,no tumor,0,False,False
+11,0.0031,no tumor,0,False,False
+12,0.0009,no tumor,0,False,False
+13,0.0007,no tumor,0,False,False
+14,0.0008,no tumor,0,False,False
+15,0.0009,no tumor,0,False,False
+16,0.0014,no tumor,0,False,False
+17,0.0014,no tumor,0,False,False
+18,0.0014,no tumor,0,False,False
+19,0.0015,no tumor,0,False,False
+20,0.0024,no tumor,0,False,False
+21,0.0028,no tumor,0,False,False
+22,0.004,no tumor,0,False,False
+23,0.0066,no tumor,0,False,False
+24,0.0097,no tumor,0,False,False
+25,0.0087,no tumor,0,False,False
+26,0.0102,no tumor,0,False,False
+27,0.0171,no tumor,0,False,False
+28,0.0469,no tumor,0,False,False
+29,0.0642,no tumor,0,False,False
+30,0.0882,no tumor,0,False,False
+31,0.0901,no tumor,0,False,False
+32,0.0771,no tumor,0,False,False
+33,0.0792,no tumor,0,False,False
+34,0.1337,no tumor,0,False,False
+35,0.2237,no tumor,0,False,False
+36,0.5953,TUMOR,77,True,False
+37,0.8735,TUMOR,27,True,False
+38,0.7556,TUMOR,128,True,False
+39,0.361,no tumor,0,False,False
+40,0.1565,no tumor,0,False,False
+41,0.1495,no tumor,0,False,False
+42,0.1739,no tumor,0,False,False
+43,0.1525,no tumor,0,False,False
+44,0.1598,no tumor,0,False,False
+45,0.1935,no tumor,0,False,False
+46,0.2249,no tumor,0,False,False
+47,0.2101,no tumor,0,False,False
+48,0.1971,no tumor,0,False,False
+49,0.2281,no tumor,0,False,False
+50,0.3562,no tumor,0,False,False
+51,0.8412,TUMOR,14,True,False
+52,0.9946,TUMOR,139,True,False
+53,0.9999,TUMOR,574,True,False
+54,1.0,TUMOR,886,True,False
 55,1.0,TUMOR,980,True,False
 56,1.0,TUMOR,1114,True,False
 57,1.0,TUMOR,1472,True,False
@@ -94,7 +94,7 @@ slice,classifier_prob,verdict,tumor_pixels,passed_to_carver,is_empty
 92,1.0,TUMOR,1570,True,False
 93,1.0,TUMOR,1445,True,False
 94,1.0,TUMOR,1330,True,False
-95,0.9999,TUMOR,1132,True,False
+95,1.0,TUMOR,1132,True,False
 96,1.0,TUMOR,1140,True,False
 97,1.0,TUMOR,1209,True,False
 98,1.0,TUMOR,1205,True,False
@@ -118,25 +118,25 @@ slice,classifier_prob,verdict,tumor_pixels,passed_to_carver,is_empty
 116,1.0,TUMOR,1000,True,False
 117,1.0,TUMOR,941,True,False
 118,1.0,TUMOR,800,True,False
-119,0.9999,TUMOR,679,True,False
-120,0.9998,TUMOR,669,True,False
-121,0.9994,TUMOR,632,True,False
-122,0.9983,TUMOR,482,True,False
-123,0.9964,TUMOR,405,True,False
-124,0.9905,TUMOR,339,True,False
-125,0.9744,TUMOR,205,True,False
-126,0.9528,TUMOR,161,True,False
-127,0.8296,TUMOR,137,True,False
-128,0.3322,no tumor,0,False,False
-129,0.0542,no tumor,0,False,False
-130,0.0402,no tumor,0,False,False
-131,0.0475,no tumor,0,False,False
-132,0.0478,no tumor,0,False,False
-133,0.0335,no tumor,0,False,False
-134,0.0211,no tumor,0,False,False
-135,0.0252,no tumor,0,False,False
-136,0.0149,no tumor,0,False,False
-137,0.0061,no tumor,0,False,False
+119,1.0,TUMOR,679,True,False
+120,1.0,TUMOR,669,True,False
+121,1.0,TUMOR,632,True,False
+122,1.0,TUMOR,482,True,False
+123,1.0,TUMOR,405,True,False
+124,1.0,TUMOR,339,True,False
+125,0.9999,TUMOR,205,True,False
+126,0.9998,TUMOR,161,True,False
+127,0.9979,TUMOR,137,True,False
+128,0.933,TUMOR,115,True,False
+129,0.4616,TUMOR,16,True,False
+130,0.3751,no tumor,0,False,False
+131,0.2508,no tumor,0,False,False
+132,0.1498,no tumor,0,False,False
+133,0.0519,no tumor,0,False,False
+134,0.0295,no tumor,0,False,False
+135,0.0244,no tumor,0,False,False
+136,0.0155,no tumor,0,False,False
+137,0.0,no tumor,0,False,True
 138,0.0,no tumor,0,False,True
 139,0.0,no tumor,0,False,True
 140,0.0,no tumor,0,False,True

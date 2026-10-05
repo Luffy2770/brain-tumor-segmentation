@@ -2,6 +2,8 @@ import os
 import random
 import numpy as np
 import nibabel as nib
+import pandas as pd
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,7 +17,7 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(42)
 
 from config import (
-    DATASET_DIR, DATA_DIR, MODELS_DIR, DEVICE, IMG_SIZE,
+    DATASET_DIR, DATA_DIR, MODELS_DIR, OUTPUTS_DIR, DEVICE, IMG_SIZE,
     CLASSIFIER_BATCH_SIZE, CLASSIFIER_LR, CLASSIFIER_EPOCHS,
     CLASSIFIER_PATIENCE, CLASSIFIER_WEIGHTS
 )
@@ -28,6 +30,7 @@ def extract_patient_slices(patient_list, split_name, img_size=IMG_SIZE):
     """
     Extracts all non-empty 2D slices (both tumor and healthy brain) from raw NIfTI files
     for a strictly defined list of patient IDs. Resizes directly to img_size (128x128).
+    Uses the patched SliceNormalizer (filters slices with near-zero variance).
     """
     normalizer = SliceNormalizer()
     images, labels, pids = [], [], []
@@ -68,7 +71,7 @@ def extract_patient_slices(patient_list, split_name, img_size=IMG_SIZE):
     return np.array(images, dtype=np.float32), np.array(labels, dtype=np.int64), np.array(pids)
 
 
-def get_classifier_dataset():
+def get_classifier_dataset(force_reextract=False):
     """
     Loads or creates patient-partitioned dataset for Stage 4 Classifier.
     Guarantees strict zero-overlap with seg_test_pids.npy.
@@ -92,8 +95,8 @@ def get_classifier_dataset():
         cls_val_img_path, cls_val_lbl_path, cls_val_pid_path
     ])
 
-    if not all_exist:
-        print("[DATA] Building patient-partitioned slice database for Stage 4 Classifier...")
+    if force_reextract or not all_exist:
+        print("[DATA] Building clean patient-partitioned slice database with patched SliceNormalizer...")
         seg_train_pids = sorted(list(set(np.load(os.path.join(DATA_DIR, "seg_train_pids.npy")))))
         seg_val_pids   = sorted(list(set(np.load(os.path.join(DATA_DIR, "seg_val_pids.npy")))))
 
@@ -111,7 +114,7 @@ def get_classifier_dataset():
         np.save(cls_val_img_path, val_imgs)
         np.save(cls_val_lbl_path, val_lbls)
         np.save(cls_val_pid_path, val_pids)
-        print("[DATA] Saved patient-partitioned arrays to disk successfully.")
+        print("[DATA] Saved clean patient-partitioned arrays to disk successfully.")
     else:
         print("[DATA] Loading cached patient-partitioned slice database from disk...")
         train_imgs = np.load(cls_train_img_path, mmap_mode='r')
@@ -122,10 +125,15 @@ def get_classifier_dataset():
         val_lbls = np.load(cls_val_lbl_path)
         val_pids = np.load(cls_val_pid_path)
 
+    # Report array statistics
+    print(f"\n[DATA STATS] Train Array: shape={train_imgs.shape}, min={float(train_imgs.min()):.4f}, max={float(train_imgs.max()):.4f}, abs_max={float(np.max(np.abs(train_imgs))):.4f}")
+    print(f"[DATA STATS] Val Array  : shape={val_imgs.shape}, min={float(val_imgs.min()):.4f}, max={float(val_imgs.max()):.4f}, abs_max={float(np.max(np.abs(val_imgs))):.4f}")
+
     # Formal Leakage Audit
     train_u = set(np.unique(train_pids))
     val_u   = set(np.unique(val_pids))
-    print(f"\n============================================================")
+
+    print(f"============================================================")
     print(f"[DATA AUDIT] Stage 4 Classifier Split Verification")
     print(f"============================================================")
     print(f" Train Patients  : {len(train_u)} ({len(train_imgs):,} total non-empty slices)")
@@ -152,7 +160,7 @@ class ClassifierDataset(Dataset):
         return img, label
 
 
-def train_classifier():
+def train_classifier(force_reextract=False):
     print(f"============================================================")
     print(f"[TRAINING] Station 4: Tumor Classifier CNN from Scratch")
     print(f"   Device         : {DEVICE}")
@@ -161,7 +169,7 @@ def train_classifier():
     print(f"   Max Epochs     : {CLASSIFIER_EPOCHS}")
     print(f"============================================================")
 
-    (train_imgs, train_lbls), (val_imgs, val_lbls) = get_classifier_dataset()
+    (train_imgs, train_lbls), (val_imgs, val_lbls) = get_classifier_dataset(force_reextract=force_reextract)
 
     train_ds = ClassifierDataset(train_imgs, train_lbls)
     val_ds   = ClassifierDataset(val_imgs, val_lbls)
@@ -188,6 +196,8 @@ def train_classifier():
 
     best_val_loss = float('inf')
     patience_counter = 0
+    saved_epoch = -1
+    history = []
 
     for epoch in range(CLASSIFIER_EPOCHS):
         model.train()
@@ -219,24 +229,75 @@ def train_classifier():
         val_loss = running_val_loss / len(val_loader.dataset)
         val_acc  = (correct / total) * 100
 
-        print(f"Epoch [{epoch+1:02d}/{CLASSIFIER_EPOCHS:02d}] "
-              f"Train Loss: {train_loss:.4f} | "
-              f"Val Loss: {val_loss:.4f} | "
-              f"Val Accuracy: {val_acc:.2f}%")
-
+        is_saved = False
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
+            saved_epoch = epoch + 1
+            is_saved = True
             torch.save(model.state_dict(), CLASSIFIER_WEIGHTS)
-            print(f"   [+] Saved Best Classifier -> {CLASSIFIER_WEIGHTS}")
+            save_msg = f"   [+] Saved Best Classifier -> {CLASSIFIER_WEIGHTS} (Epoch {saved_epoch})"
         else:
             patience_counter += 1
-            if patience_counter >= CLASSIFIER_PATIENCE:
-                print(f"[EARLY STOPPING] Validation loss did not improve for {CLASSIFIER_PATIENCE} epochs.")
-                break
+            save_msg = ""
 
-    print(f"\n[SUCCESS] Classifier training complete. Checkpoint saved at: {CLASSIFIER_WEIGHTS}")
+        print(f"Epoch [{epoch+1:02d}/{CLASSIFIER_EPOCHS:02d}] "
+              f"Train Loss: {train_loss:.4f} | "
+              f"Val Loss: {val_loss:.4f} | "
+              f"Val Accuracy: {val_acc:.2f}%"
+              f"{save_msg}")
+
+        history.append({
+            "epoch": epoch + 1,
+            "train_loss": round(float(train_loss), 6),
+            "val_loss": round(float(val_loss), 6),
+            "val_accuracy": round(float(val_acc), 4),
+            "saved_checkpoint": is_saved
+        })
+
+        if patience_counter >= CLASSIFIER_PATIENCE:
+            print(f"[EARLY STOPPING] Validation loss did not improve for {CLASSIFIER_PATIENCE} epochs.")
+            break
+
+    # Save training log to CSV
+    os.makedirs(OUTPUTS_DIR, exist_ok=True)
+    df_hist = pd.DataFrame(history)
+    csv_log_path = os.path.join(OUTPUTS_DIR, "classifier_training_log.csv")
+    df_hist.to_csv(csv_log_path, index=False)
+    print(f"\n[+] Saved classifier training log -> {csv_log_path}")
+
+    # Plot clean training curve
+    fig, (ax_loss, ax_acc) = plt.subplots(1, 2, figsize=(12, 4.5))
+
+    epochs_range = df_hist["epoch"]
+    ax_loss.plot(epochs_range, df_hist["train_loss"], marker='o', label="Train Loss", color="#1f77b4", linewidth=2)
+    ax_loss.plot(epochs_range, df_hist["val_loss"], marker='s', label="Val Loss", color="#d62728", linewidth=2)
+    if saved_epoch != -1:
+        ax_loss.axvline(saved_epoch, linestyle="--", color="forestgreen", linewidth=1.8, label=f"Saved Epoch {saved_epoch} (Loss: {best_val_loss:.4f})")
+    ax_loss.set_title("Stage 4 Classifier Loss per Epoch", fontweight="bold")
+    ax_loss.set_xlabel("Epoch", fontweight="bold")
+    ax_loss.set_ylabel("Cross-Entropy Loss", fontweight="bold")
+    ax_loss.legend(loc="upper right")
+    ax_loss.grid(True, alpha=0.3)
+
+    ax_acc.plot(epochs_range, df_hist["val_accuracy"], marker='o', label="Val Accuracy (%)", color="#2ca02c", linewidth=2)
+    if saved_epoch != -1:
+        saved_acc = df_hist.loc[df_hist["epoch"] == saved_epoch, "val_accuracy"].values[0]
+        ax_acc.axvline(saved_epoch, linestyle="--", color="forestgreen", linewidth=1.8, label=f"Saved Epoch {saved_epoch} ({saved_acc:.2f}%)")
+    ax_acc.set_title("Stage 4 Classifier Validation Accuracy", fontweight="bold")
+    ax_acc.set_xlabel("Epoch", fontweight="bold")
+    ax_acc.set_ylabel("Accuracy (%)", fontweight="bold")
+    ax_acc.legend(loc="lower right")
+    ax_acc.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plot_path = os.path.join(OUTPUTS_DIR, "classifier_training_curves.png")
+    plt.savefig(plot_path, dpi=160)
+    plt.close(fig)
+    print(f"[+] Saved classifier training curves -> {plot_path}")
+
+    print(f"\n[SUCCESS] Classifier training complete. Checkpoint saved at: {CLASSIFIER_WEIGHTS} (Epoch {saved_epoch})")
 
 
 if __name__ == "__main__":
-    train_classifier()
+    train_classifier(force_reextract=True)

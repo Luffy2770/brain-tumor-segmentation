@@ -51,6 +51,7 @@ brain-tumor-segmentation/
 │   ├── config.py                   # Master configuration & hyperparameters
 │   ├── s1.py ... s8.py             # Modular stations S1 to S8
 │   ├── factory_pipeline.py         # Primary end-to-end pipeline runner
+│   ├── render_3d.py                # Standalone 3D WebGL & multi-planar renderer
 │   ├── losses.py                   # Focal Tversky & Dice loss definitions
 │   ├── check_leakage.py            # Patient-level zero-leakage audit script
 │   ├── generate_analytics.py       # Confusion matrices & benchmark visualizer
@@ -65,6 +66,7 @@ brain-tumor-segmentation/
 ├── sample_data/                    # Sample MRI scans for instant execution
 │   ├── BraTS20_Training_001/       # Complete multi-modal scan & ground truth
 │   └── BraTS20_Training_230/       # Complete multi-modal scan & ground truth
+├── render_3d.py                    # Root convenience launcher for 3D visualization
 ├── Presentation_Brain_Tumor_Contraption.ipynb # Interactive step-by-step walkthrough
 ├── requirements.txt                # Python package dependencies
 └── README.md                       # Main repository guide
@@ -94,22 +96,28 @@ python my_try_init/factory_pipeline.py BraTS20_Training_001 --mode compare
 python my_try_init/factory_pipeline.py BraTS20_Training_230 --mode compare
 ```
 
-Or run directly from inside `my_try_init`:
+### 3. Interactive 3D Volumetric Rendering
+
+Extract surface meshes via Marching Cubes and generate an interactive 3D WebGL model (with translucent glass brain, ground truth, and predicted tumor):
+
 ```bash
-cd my_try_init
-python factory_pipeline.py BraTS20_Training_001 --mode compare
+# Render 3D volume and automatically open interactive viewer in browser
+python render_3d.py BraTS20_Training_001 --open
+
+# Render another patient (e.g. test patient 259)
+python render_3d.py BraTS20_Training_259
 ```
 
-### 3. Inspect the Generated Outputs
+This exports:
+- `render_3d.html`: Self-contained interactive 3D viewer with 360° rotation, zoom, and anatomical camera presets.
+- `render_3d_snapshot.png`: High-resolution 4-panel static 3D projection (Perspective, Axial, Sagittal, Coronal).
+
+### 4. Inspect the Generated Outputs
 
 Results are automatically saved to `my_try_init/outputs/<patient_id>/`:
 - `comparison.png`: 3-panel visualization showing Normal Scan, Ground-Truth Mask, and Predicted Mask (with tumor volume in mL and voxel counts).
 - `slice_distribution.png`: Per-slice bar chart comparing ground-truth tumor voxels vs predicted voxels across the entire 155-slice axial stack.
 - `slice_report.csv`: Detailed slice-by-slice tabular audit with classification probabilities and segmentation voxel counts.
-
-### 4. Interactive Presentation Notebook
-
-Open `Presentation_Brain_Tumor_Contraption.ipynb` in VS Code or Jupyter Lab to step through each of the 8 stations interactively with inline visualizations.
 
 ---
 
@@ -119,13 +127,16 @@ The system was evaluated on a strictly holdout test set of 37 BraTS2020 patients
 
 | Metric | Measured Value |
 | :--- | :--- |
-| **Mean 3D Volume Dice** | **82.02%** |
-| **Median 3D Volume Dice** | **86.36%** |
-| **Voxel Recall (Sensitivity)** | **88.89%** |
-| **Voxel Precision (PPV)** | **78.01%** |
-| **3D Volume IoU** | **71.74%** |
-| **Stage 4 Classifier Sensitivity** | **89.52%** |
-| **Stage 4 Classifier Specificity** | **94.01%** |
+| **Mean 3D Volume Dice** | **82.04%** |
+| **Median 3D Volume Dice** | **86.63%** |
+| **Mean Patient Recall (Sensitivity)** | **89.51%** (Pooled Voxel Recall: **92.03%**) |
+| **Mean Patient Precision (PPV)** | **77.37%** (Pooled Voxel Precision: **79.35%**) |
+| **3D Volume IoU** | **71.16%** |
+| **Stage 4 Classifier Sensitivity** | **92.55%** (2,349 / 2,538 slices) |
+| **Stage 4 Classifier Specificity** | **90.84%** (2,310 / 2,543 slices) |
+| **Stage 4 Classifier Accuracy** | **91.69%** (4,659 / 5,081 slices) |
+| **Stage 4 Classifier ROC AUC** | **0.9768** |
+| **Stage 4 Classifier PR AUC** | **0.9798** |
 | **Zero Patient-Level Leakage** | **0 patient overlap (Verified)** |
 
 > For complete mathematical definitions, layer parameters, and slice audits, see [`my_try_init/PROJECT_FACTS.md`](my_try_init/PROJECT_FACTS.md).

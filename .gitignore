@@ -48,3 +48,7 @@ processed/reports/*
 # Legacy Archives & Scratch Directories
 legacy_archive/
 scratch/
+
+# Large Dynamic 3D WebGL HTML Meshes (Generated dynamically by render_3d.py)
+*.html
+
